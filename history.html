@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mindful Journal | History</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+    <!-- Loading State -->
+    <div id="loading-state" class="loading-container hidden">
+        <div class="animate-pulse">Loading...</div>
+    </div>
+
+    <!-- Delete Confirmation Dialog -->
+    <div id="alert-dialog" class="alert-dialog-overlay hidden">
+        <div class="alert-dialog-content">
+            <div class="alert-dialog-header">
+                <h3 class="alert-dialog-title">Delete Journal Entry?</h3>
+                <p class="alert-dialog-description">
+                    This action cannot be undone. This will permanently delete your journal entry and all associated analysis data.
+                </p>
+            </div>
+            <div class="alert-dialog-footer">
+                <button id="cancel-btn" class="btn btn-outline">Cancel</button>
+                <button id="confirm-delete-btn" class="btn btn-destructive">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page Content -->
+    <div id="dashboard-content">
+
+        <!-- Header -->
+        <header>
+            <div class="container">
+                <div class="header-container">
+                    <div class="header-left">
+                        <a href="index.html" class="btn btn-ghost btn-icon">
+                            <i class="fas fa-arrow-left"></i>
+                        </a>
+
+                        <div class="logo-container">
+                            <div class="logo-icon">
+                                <i class="fas fa-brain"></i>
+                            </div>
+                            <div class="logo-text">
+                                <h1>Journal History</h1>
+                                <p>Your past entries & trauma insights</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-ghost" onclick="signOut()">
+                        <i class="fas fa-sign-out-alt"></i> Sign Out
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Entries Container -->
+        <main class="container main-content">
+            <div id="entries-container" class="space-y-6">
+                <!-- JS will inject every journal entry + analysis here -->
+            </div>
+        </main>
+
+    </div>
+
+    <!-- Scripts -->
+    <script src="/js/script.js"></script>
+    <script src="/js/history.js"></script>
+
+</body>
+</html>

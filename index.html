@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MindGuard | Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <!-- Loading State -->
+    <div id="loading-state" class="loading-container" style="display: none;">
+        <div class="animate-pulse">Loading...</div>
+    </div>
+
+    <!-- Main Dashboard Content -->
+    <div id="dashboard-content">
+        <!-- Header -->
+        <header>
+            <div class="header-container">
+                <div class="logo-container">
+                    <div class="logo-icon">
+                        <i class="fas fa-brain"></i>
+                    </div>
+                    <div class="logo-text">
+                        <h1>MindGuard Journal</h1>
+                        <p>AI Trauma Trigger Predictor</p>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-outline" onclick="navigateToHistory()">
+                        <i class="fas fa-history"></i>
+                        History
+                    </button>
+                    <button class="btn btn-ghost" onclick="signOut()">
+                        <i class="fas fa-sign-out-alt"></i>
+                        Sign Out
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="container main-content">
+            <div class="space-y-8">
+                <!-- Welcome Section -->
+                <section class="welcome-section">
+                    <h2>Welcome to Your Safe Space</h2>
+                    <p>
+                        Express your thoughts freely. Our AI analyzes trauma patterns, detects triggers, 
+                        and provides personalized support when you need it most.
+                    </p>
+                </section>
+
+                <!-- Journal Editor -->
+                <section class="journal-editor-card">
+                    <div class="journal-editor-header">
+                        <h3>Today's Journal Entry</h3>
+                        <p>Write freely about your thoughts, feelings, and experiences</p>
+                    </div>
+                    <div class="journal-editor-content">
+                        <div class="textarea-container">
+                            <textarea id="journal-text" placeholder="What's on your mind today? Express yourself without judgment..."></textarea>
+                        </div>
+                        
+                        <div class="editor-footer">
+                            <div class="word-count">
+                                <span id="word-count">0</span> words
+                            </div>
+                            <div class="footer-actions">
+                                <button id="clear-btn" class="btn btn-outline" onclick="clearJournalEntry()">
+                                    <i class="fas fa-times"></i> Clear
+                                </button>
+                                <button id="analyze-btn" class="btn btn-primary" onclick="analyzeJournal()" disabled>
+                                    <i class="fas fa-magic"></i> Analyze Entry
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Analysis Display -->
+                <section id="analysis-section">
+                    <!-- Analysis Loading State -->
+                    <div id="analysis-loading" class="analysis-loading" style="display: none;">
+                        <div class="animate-pulse">Analyzing your journal entry...</div>
+                    </div>
+
+                    <!-- Analysis Empty State -->
+                    <div id="analysis-empty" class="empty-state">
+                        <h2>Your Insights</h2>
+                        <p>Write and analyze a journal entry to see your personalized trauma insights</p>
+                    </div>
+
+                    <!-- Analysis Content -->
+                    <div id="analysis-content" style="display: none;">
+                        <div class="analysis-header">
+                            <h3>Comprehensive Trauma Pattern Analysis</h3>
+                            <p>Based on your latest journal entry • Updated just now</p>
+                        </div>
+                        
+                        <!-- Risk Level Summary -->
+                        <div id="risk-summary" class="risk-summary-card">
+                            <div class="risk-level-display">
+                                <h4>Current Risk Assessment</h4>
+                                <div class="risk-meter">
+                                    <div class="risk-meter-fill" id="risk-meter-fill"></div>
+                                </div>
+                                <div class="risk-info">
+                                    <span id="risk-level-text" class="risk-level"></span>
+                                    <span id="risk-description" class="risk-description"></span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="analysis-grid">
+                            <!-- 1. Recurring Patterns Card -->
+                            <div class="analysis-card pattern-card">
+                                <div class="analysis-card-header">
+                                    <div class="analysis-card-title">
+                                        <i class="fas fa-chart-line text-primary"></i>
+                                        Recurring Patterns
+                                    </div>
+                                    <div class="analysis-card-description">Patterns across your entries</div>
+                                </div>
+                                <div class="analysis-card-content" id="patterns-container">
+                                    <!-- Will be populated by JavaScript -->
+                                    <div class="empty-analysis-message">
+                                        <i class="fas fa-chart-bar"></i>
+                                        <p>Patterns will appear here after analysis</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 2. Trauma Triggers Card -->
+                            <div class="analysis-card trigger-card">
+                                <div class="analysis-card-header">
+                                    <div class="analysis-card-title">
+                                        <i class="fas fa-exclamation-circle text-warning"></i>
+                                        Trauma Triggers
+                                    </div>
+                                    <div class="analysis-card-description">Potential triggers with intensity levels</div>
+                                </div>
+                                <div class="analysis-card-content" id="triggers-container">
+                                    <!-- Will be populated by JavaScript -->
+                                    <div class="empty-analysis-message">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                        <p>Triggers will appear here after analysis</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 3. Early Warnings Card -->
+                            <div class="analysis-card warning-card">
+                                <div class="analysis-card-header">
+                                    <div class="analysis-card-title">
+                                        <i class="fas fa-exclamation-triangle text-warning"></i>
+                                        Early Warning Predictions
+                                    </div>
+                                    <div class="analysis-card-description">Potential risks and predictions</div>
+                                </div>
+                                <div class="analysis-card-content" id="warnings-container">
+                                    <!-- Will be populated by JavaScript -->
+                                    <div class="empty-analysis-message">
+                                        <i class="fas fa-bell"></i>
+                                        <p>Warnings will appear here after analysis</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 4. Grounding Techniques Card -->
+                            <div class="analysis-card grounding-card">
+                                <div class="analysis-card-header">
+                                    <div class="analysis-card-title">
+                                        <i class="fas fa-heart text-primary"></i>
+                                        Grounding Techniques
+                                    </div>
+                                    <div class="analysis-card-description">Step-by-step instructions</div>
+                                </div>
+                                <div class="analysis-card-content" id="grounding-container">
+                                    <!-- Will be populated by JavaScript -->
+                                    <div class="empty-analysis-message">
+                                        <i class="fas fa-spa"></i>
+                                        <p>Grounding techniques will appear here after analysis</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 5. Coping Strategies Card -->
+                            <div class="analysis-card coping-card">
+                                <div class="analysis-card-header">
+                                    <div class="analysis-card-title">
+                                        <i class="fas fa-lightbulb text-primary"></i>
+                                        Personalized Coping Strategies
+                                    </div>
+                                    <div class="analysis-card-description">Tailored approaches for you</div>
+                                </div>
+                                <div class="analysis-card-content" id="coping-container">
+                                    <!-- Will be populated by JavaScript -->
+                                    <div class="empty-analysis-message">
+                                        <i class="fas fa-hands-helping"></i>
+                                        <p>Coping strategies will appear here after analysis</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Pattern Trends Container (Optional additional section) -->
+                        <div id="pattern-trends-container" class="pattern-trends-section">
+                            <!-- Will be populated by JavaScript if needed -->
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="analysis-actions">
+                            <button class="btn btn-outline" onclick="saveToHistory()">
+                                <i class="fas fa-save"></i> Save to History
+                            </button>
+                            <button class="btn btn-primary" onclick="analyzeAnother()">
+                                <i class="fas fa-edit"></i> Write Another Entry
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+        
+        <!-- Footer -->
+        <footer>
+            <div class="footer-content">
+                <p>Your journal entries are private and secure. AI analysis is meant to support, not replace, professional therapy.</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="/js/script.js"></script>
+</body>
+</html>
