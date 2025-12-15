@@ -24,6 +24,18 @@ window.addEventListener('DOMContentLoaded', async () => {
         // User authenticated → show loader
         loadingState.style.display = 'flex';
         dashboardContent.style.display = 'none';
+
+        // Simulate loading / init app
+        setTimeout(() => {
+            loadingState.style.display = 'none';
+            dashboardContent.style.display = 'block';
+
+            // Show page AFTER auth + init
+            document.body.style.visibility = 'visible';
+
+            updateWordCount();
+        }, 800);
+
     } catch (err) {
         console.error('Auth check error:', err);
         window.location.replace('login.html');
