@@ -68,7 +68,7 @@ class JournalService {
         
             const { data, error } = await supabase
                 .from('journal_entries')
-                .select('*')
+                .select('id, content, created_at, risk_level, word_count, title, patterns, triggers, warnings, grounding_techniques, coping_strategies')
                 .eq('user_id', user.id)
                 .order('created_at', { ascending: false });
             
@@ -111,7 +111,7 @@ class JournalService {
 
             const { data, error } = await this.supabase
                 .from('journal_entries')
-                .select('*')
+                .select('id, content, created_at, word_count, risk_level, patterns, triggers, warnings, grounding_techniques, coping_strategies')
                 .eq('id', entryId)
                 .single();
 
