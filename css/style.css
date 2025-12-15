@@ -37,6 +37,7 @@ body {
     color: var(--foreground);
     line-height: 1.6;
     min-height: 100vh;
+    visibility: hidden;
 }
 
 /* Loading State */
