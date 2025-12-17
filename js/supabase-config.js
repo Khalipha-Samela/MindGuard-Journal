@@ -1,179 +1,286 @@
-console.log('Loading Supabase config...');
+// supabase-config.js - Fixed version
+console.log('Loading MindGuard Supabase config...');
 
 // ==============================================
 // IMPORTANT: REPLACE THESE WITH YOUR ACTUAL VALUES!
 // ==============================================
-const SUPABASE_PROJECT_URL = 'https://udashmvrlcpdrjdqczig.supabase.co';  // ← YOUR ACTUAL PROJECT URL
-const SUPABASE_PROJECT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVkYXNobXZybGNwZHJqZHFjemlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU3MjAwMDAsImV4cCI6MjA4MTI5NjAwMH0.es2FIxEE5WKKYTI0jbQwmbCrl4V9tiI0kh9BcYwTwqw';                // ← YOUR ACTUAL ANON KEY
+const MINDGUARD_SUPABASE_URL = 'https://udashmvrlcpdrjdqczig.supabase.co';  // ← YOUR ACTUAL PROJECT URL
+const MINDGUARD_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVkYXNobXZybGNwZHJqZHFjemlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU3MjAwMDAsImV4cCI6MjA4MTI5NjAwMH0.es2FIxEE5WKKYTI0jbQwmbCrl4V9tiI0kh9BcYwTwqw';                // ← YOUR ACTUAL ANON KEY
 // ==============================================
 
-console.log('Supabase URL:', SUPABASE_PROJECT_URL);
-console.log('Supabase Key available:', !!SUPABASE_PROJECT_KEY);
+console.log('Supabase URL:', MINDGUARD_SUPABASE_URL);
+console.log('Supabase Key available:', !!MINDGUARD_SUPABASE_KEY);
 
-// Check if Supabase is already initialized globally
-if (window.supabase && window.supabase.auth) {
-    console.log('Supabase already initialized globally');
-} else {
-    initializeSupabaseClient();
-}
-
-function initializeSupabaseClient() {
+// Function to initialize Supabase
+function initializeMindGuardSupabase() {
     try {
-        // Check if supabaseJs is available (from CDN)
+        console.log('Attempting to initialize Supabase...');
+        
+        // Check different ways Supabase might be available
+        let createClientFunction = null;
+        
+        // Check 1: supabaseJs from CDN
         if (typeof supabaseJs !== 'undefined' && supabaseJs.createClient) {
-            console.log('Using supabaseJs from CDN');
-            createSupabaseClient(supabaseJs.createClient);
-        } 
-        // Check if createClient is available directly
-        else if (typeof createClient !== 'undefined') {
-            console.log('Using createClient directly');
-            createSupabaseClient(createClient);
+            console.log('Found supabaseJs.createClient');
+            createClientFunction = supabaseJs.createClient;
         }
-        // Check if Supabase is available as window.supabase (might be from another script)
+        // Check 2: window.supabase (might be loaded by another script)
         else if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
-            console.log('Using window.supabase.createClient');
-            createSupabaseClient(window.supabase.createClient);
+            console.log('Found window.supabase.createClient');
+            createClientFunction = window.supabase.createClient;
         }
-        else {
+        // Check 3: createClient might be global
+        else if (typeof createClient !== 'undefined') {
+            console.log('Found global createClient');
+            createClientFunction = createClient;
+        }
+        // Check 4: maybe Supabase v2 style
+        else if (typeof window.supabase !== 'undefined') {
+            console.log('Found window.supabase, assuming it is the client');
+            // If window.supabase is already a client, use it directly
+            window.mindguardSupabase = window.supabase;
+            console.log('Using existing Supabase client');
+            dispatchReadyEvent(window.supabase);
+            return;
+        }
+        
+        if (!createClientFunction) {
             console.error('ERROR: Could not find Supabase createClient function');
-            console.log('Available globals:', Object.keys(window).filter(k => 
-                k.toLowerCase().includes('supabase') || 
-                k.toLowerCase().includes('createclient')
-            ));
-            createFallbackSupabase();
+            console.log('Available globals for debugging:', 
+                Object.keys(window).filter(k => 
+                    k.toLowerCase().includes('supabase') || 
+                    k.toLowerCase().includes('createclient')
+                ).join(', ')
+            );
+            createFallbackClient();
+            return;
         }
-    } catch (error) {
-        console.error('ERROR in initializeSupabaseClient:', error);
-        createFallbackSupabase();
-    }
-}
-
-function createSupabaseClient(createClientFunc) {
-    console.log('Creating Supabase client...');
-    
-    try {
-        // Create the client with a different variable name to avoid conflict
-        const supabaseClient = createClientFunc(SUPABASE_PROJECT_URL, SUPABASE_PROJECT_KEY, {
-            auth: {
-                persistSession: true,
-                autoRefreshToken: true,
-                detectSessionInUrl: true
+        
+        console.log('Creating Supabase client...');
+        
+        // Create the client with unique variable name
+        const mindguardClient = createClientFunction(
+            MINDGUARD_SUPABASE_URL, 
+            MINDGUARD_SUPABASE_KEY, 
+            {
+                auth: {
+                    persistSession: true,
+                    autoRefreshToken: true,
+                    detectSessionInUrl: true
+                }
             }
-        });
+        );
         
-        console.log('Supabase client created successfully:', !!supabaseClient);
-        console.log('Supabase auth available:', !!supabaseClient.auth);
+        console.log('Supabase client created:', !!mindguardClient);
+        console.log('Auth available:', !!(mindguardClient && mindguardClient.auth));
         
-        // Store with a different global name to avoid conflicts
-        window.mindguardSupabase = supabaseClient;
-        window.supabase = supabaseClient;  // Still set this for compatibility
-        window.supabaseClient = supabaseClient;
+        // Store with unique global name to avoid conflicts
+        window.mindguardSupabase = mindguardClient;
+        
+        // Also set the standard names for compatibility
+        if (!window.supabase) {
+            window.supabase = mindguardClient;
+        }
+        if (!window.supabaseClient) {
+            window.supabaseClient = mindguardClient;
+        }
         
         // Test the connection
-        testConnection(supabaseClient);
+        testConnection(mindguardClient);
         
-        console.log('Supabase config loaded successfully');
-        
-        // Dispatch event to notify other scripts
-        const event = new CustomEvent('supabaseReady', { detail: { supabase: supabaseClient } });
-        window.dispatchEvent(event);
+        // Mark as ready
+        dispatchReadyEvent(mindguardClient);
         
     } catch (error) {
-        console.error('ERROR creating Supabase client:', error);
-        createFallbackSupabase();
+        console.error('ERROR in initializeMindGuardSupabase:', error);
+        createFallbackClient();
     }
 }
 
+// Function to test the connection
 async function testConnection(client) {
+    if (!client || !client.auth) {
+        console.warn('Cannot test connection - client not available');
+        return;
+    }
+    
     console.log('Testing Supabase connection...');
     try {
         const { data, error } = await client.auth.getSession();
         if (error) {
-            console.warn('Supabase connection test warning:', error.message);
+            console.warn('Connection test warning:', error.message);
+            console.log('This is normal if no user is logged in');
         } else {
-            console.log('Supabase connection test passed');
-            console.log('User session:', data.session ? 'Logged in' : 'Not logged in');
+            console.log('Connection successful');
+            console.log('Session exists:', !!data.session);
         }
     } catch (err) {
         console.error('Connection test exception:', err);
     }
 }
 
-function createFallbackSupabase() {
-    console.log('Creating fallback Supabase client (offline mode)...');
+// Function to dispatch ready event
+function dispatchReadyEvent(client) {
+    console.log('Supabase config loaded successfully');
+    
+    // Dispatch event to notify other scripts
+    try {
+        const event = new CustomEvent('mindguardSupabaseReady', { 
+            detail: { supabase: client } 
+        });
+        window.dispatchEvent(event);
+        console.log('Dispatched mindguardSupabaseReady event');
+    } catch (e) {
+        console.log('Could not dispatch event:', e);
+    }
+}
+
+// Function to create fallback client for offline mode
+function createFallbackClient() {
+    console.log('Creating fallback Supabase client for offline mode...');
     
     const fallbackClient = {
+        _isFallback: true,
         auth: {
             getSession: async () => { 
-                console.warn('Using fallback getSession');
-                // Try to get session from localStorage as fallback
-                const sessionData = localStorage.getItem('supabase.auth.token');
-                let session = null;
-                if (sessionData) {
-                    try {
-                        session = JSON.parse(sessionData);
-                    } catch (e) {
-                        console.warn('Could not parse session data');
+                console.log('[Fallback] Getting session from localStorage');
+                // Try to get session from localStorage
+                try {
+                    const sessionStr = localStorage.getItem('mindguard_session');
+                    if (sessionStr) {
+                        const session = JSON.parse(sessionStr);
+                        // Check if session is expired
+                        if (session.expires_at && session.expires_at > Date.now()) {
+                            return { 
+                                data: { session: { user: session.user } }, 
+                                error: null 
+                            };
+                        }
                     }
+                } catch (e) {
+                    console.warn('Error reading session from localStorage:', e);
                 }
                 return { 
-                    data: { session }, 
-                    error: session ? null : new Error('Supabase not available') 
+                    data: { session: null }, 
+                    error: { message: 'Using offline mode' } 
                 }; 
             },
             getUser: async () => {
-                console.warn('Using fallback getUser');
+                console.log('[Fallback] Getting user');
                 const session = await this.getSession();
                 return { 
                     data: { user: session.data.session ? session.data.session.user : null }, 
                     error: session.error 
                 };
             },
+            signInWithPassword: async ({ email, password }) => {
+                console.log('[Fallback] Signing in (offline mode)');
+                // Create a demo user for offline mode
+                const demoUser = {
+                    id: 'demo-' + Date.now(),
+                    email: email,
+                    created_at: new Date().toISOString()
+                };
+                
+                // Store in localStorage
+                localStorage.setItem('mindguard_session', JSON.stringify({
+                    user: demoUser,
+                    expires_at: Date.now() + 24 * 60 * 60 * 1000 // 24 hours
+                }));
+                
+                return { 
+                    data: { 
+                        user: demoUser,
+                        session: { user: demoUser }
+                    }, 
+                    error: null 
+                };
+            },
+            signUp: async ({ email, password, options }) => {
+                console.log('[Fallback] Signing up (offline mode)');
+                // Create a demo user for offline mode
+                const demoUser = {
+                    id: 'demo-' + Date.now(),
+                    email: email,
+                    user_metadata: options?.data || {},
+                    created_at: new Date().toISOString()
+                };
+                
+                // Store in localStorage
+                localStorage.setItem('mindguard_session', JSON.stringify({
+                    user: demoUser,
+                    expires_at: Date.now() + 24 * 60 * 60 * 1000 // 24 hours
+                }));
+                
+                return { 
+                    data: { 
+                        user: demoUser,
+                        session: { user: demoUser }
+                    }, 
+                    error: null 
+                };
+            },
             signOut: async () => {
-                console.warn('Using fallback signOut');
-                localStorage.removeItem('supabase.auth.token');
+                console.log('[Fallback] Signing out');
+                localStorage.removeItem('mindguard_session');
                 return { error: null };
             },
             onAuthStateChange: () => {
-                console.warn('Using fallback onAuthStateChange');
+                console.log('[Fallback] Auth state change listener');
                 return { data: { subscription: { unsubscribe: () => {} } } };
             }
         },
         from: () => {
-            console.warn('Using fallback from');
+            console.log('[Fallback] Database query (offline)');
             return {
-                select: () => ({ data: null, error: new Error('Database offline') }),
-                insert: () => ({ data: null, error: new Error('Database offline') }),
-                update: () => ({ data: null, error: new Error('Database offline') }),
-                delete: () => ({ data: null, error: new Error('Database offline') })
+                select: () => ({ data: [], error: null }),
+                insert: () => ({ data: null, error: { message: 'Offline mode' } }),
+                update: () => ({ data: null, error: { message: 'Offline mode' } }),
+                delete: () => ({ data: null, error: { message: 'Offline mode' } })
             };
         }
     };
     
-    // Store with different names to avoid conflicts
+    // Store with unique name
     window.mindguardSupabase = fallbackClient;
-    window.supabase = fallbackClient;  // For compatibility
-    window.supabaseClient = fallbackClient;
     
-    console.log('Fallback Supabase created - running in offline mode');
+    // Also set standard names if not already set
+    if (!window.supabase) {
+        window.supabase = fallbackClient;
+    }
+    if (!window.supabaseClient) {
+        window.supabaseClient = fallbackClient;
+    }
     
-    // Dispatch event so other scripts can proceed
-    const event = new CustomEvent('supabaseReady', { detail: { supabase: fallbackClient } });
-    window.dispatchEvent(event);
+    console.log('Fallback client created - running in offline/demo mode');
+    
+    // Dispatch ready event for fallback too
+    dispatchReadyEvent(fallbackClient);
 }
 
 // Helper to check status
-window.checkSupabaseStatus = function() {
-    const client = window.mindguardSupabase || window.supabase;
+window.checkMindGuardSupabase = function() {
+    const client = window.mindguardSupabase;
     return {
         isAvailable: !!(client && client.auth),
-        isFallback: client && client.auth && 
-                   typeof client.auth.getSession === 'function' && 
-                   client.auth.getSession.toString().includes('fallback'),
-        url: SUPABASE_PROJECT_URL,
-        hasKey: !!SUPABASE_PROJECT_KEY,
-        clientType: window.mindguardSupabase === window.supabase ? 'primary' : 'conflict'
+        isFallback: !!(client && client._isFallback),
+        url: MINDGUARD_SUPABASE_URL,
+        hasKey: !!MINDGUARD_SUPABASE_KEY
     };
 };
 
-console.log('Supabase config script execution complete');
+// Initialize when the script loads
+console.log('Starting Supabase initialization...');
+
+// Wait a bit for other scripts to load, then initialize
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM loaded, initializing Supabase...');
+        setTimeout(initializeMindGuardSupabase, 100);
+    });
+} else {
+    console.log('DOM already loaded, initializing Supabase...');
+    setTimeout(initializeMindGuardSupabase, 100);
+}
+
+console.log('Supabase config script loaded (initialization pending)');
