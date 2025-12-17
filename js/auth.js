@@ -71,6 +71,45 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(initializeAuth, 300);
 });
 
+async function handleSmartRedirect() {
+    console.log('🔄 Checking if smart redirect is needed...');
+    
+    // Skip if loop protection is active
+    if (sessionStorage.getItem('loop_protection_active') === 'true') {
+        console.log('🛑 Loop protection active - skipping redirect');
+        return;
+    }
+    
+    const currentPage = window.location.pathname;
+    const isAuthPage = currentPage.includes('login.html') || currentPage.includes('register.html');
+    
+    if (!isAuthPage) {
+        console.log('📄 Not on auth page - no redirect needed');
+        return;
+    }
+    
+    try {
+        const supabase = window.mindguardSupabase || window.supabase || window.supabaseClient;
+        if (!supabase || !supabase.auth) return;
+        
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session) {
+            console.log('✅ User is logged in on', currentPage, '- redirecting to dashboard');
+            
+            // Clear any loop counters
+            sessionStorage.removeItem('page_load_count');
+            
+            // Wait a moment then redirect
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 1500);
+        }
+    } catch (error) {
+        console.error('Redirect check error:', error);
+    }
+}
+
 /**
  * Initialize auth functionality
  */
@@ -94,6 +133,8 @@ function initializeAuth() {
     
     // Check auth state SAFELY (no redirects)
     checkAuthStateSafely();
+
+    handleSmartRedirect();
 }
 
 /**
