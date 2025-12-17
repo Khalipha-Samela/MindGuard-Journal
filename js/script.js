@@ -11,12 +11,24 @@ const clearBtn = document.getElementById('clear-btn');
 
 // Simulate initial loading state
 window.addEventListener('DOMContentLoaded', async () => {
-    const supabase = window.supabaseClient;
-
+    console.log('DOM loaded, waiting for Supabase...');
+    
+    // Wait for supabase to be available
+    if (!window.supabase && !window.supabaseClient) {
+        console.log('Supabase not available yet, waiting...');
+        setTimeout(() => {
+            window.location.reload();
+        }, 1000);
+        return;
+    }
+    
+    const supabase = window.supabase || window.supabaseClient;
+    
     try {
         const { data: { session }, error } = await supabase.auth.getSession();
 
         if (!session) {
+            console.log('No session, redirecting to login');
             window.location.replace('login.html');
             return;
         }
