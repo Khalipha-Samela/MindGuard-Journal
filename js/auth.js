@@ -1,188 +1,43 @@
-// auth.js - FIXED VERSION (No Infinite Loop)
-console.log('🔐 auth.js loading...');
-
-// ==============================================
-// LOOP PROTECTION SYSTEM
-// ==============================================
-
-// Track page loads to detect loops
-let pageLoadCount = parseInt(sessionStorage.getItem('page_load_count') || '0');
-pageLoadCount++;
-sessionStorage.setItem('page_load_count', pageLoadCount.toString());
-console.log(`📊 Page load #${pageLoadCount}`);
-
-// If too many reloads, activate loop protection
-if (pageLoadCount > 5) {
-    console.error('🔄 TOO MANY RELOADS - Activating loop protection');
-    sessionStorage.setItem('loop_protection_active', 'true');
-    
-    // Show warning to user
-    setTimeout(() => {
-        if (document.body) {
-            const warning = document.createElement('div');
-            warning.id = 'loop-protection-warning';
-            warning.style.cssText = `
-                position: fixed;
-                top: 10px;
-                left: 50%;
-                transform: translateX(-50%);
-                background: #dc2626;
-                color: white;
-                padding: 15px 20px;
-                border-radius: 8px;
-                z-index: 99999;
-                font-family: system-ui, -apple-system, sans-serif;
-                font-size: 14px;
-                max-width: 400px;
-                text-align: center;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            `;
-            warning.innerHTML = `
-                <strong>⚠️ Loop Detected</strong><br>
-                Page has reloaded ${pageLoadCount} times.<br>
-                <button onclick="sessionStorage.clear(); localStorage.removeItem('mindguard_session'); location.reload();" 
-                        style="margin-top: 10px; padding: 8px 16px; background: white; color: #dc2626; border: none; border-radius: 4px; cursor: pointer;">
-                    Reset & Reload
-                </button>
-            `;
-            document.body.appendChild(warning);
-        }
-    }, 500);
-}
-
-// Check if loop protection is active
-const LOOP_PROTECTION_ACTIVE = sessionStorage.getItem('loop_protection_active') === 'true';
-
-// ==============================================
-// MAIN AUTH FUNCTIONS
-// ==============================================
-
 // DOM Ready
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('✅ DOM loaded in auth.js');
-    
-    // Skip auth if loop protection is active
-    if (LOOP_PROTECTION_ACTIVE) {
-        console.warn('🛑 Loop protection active - skipping auth initialization');
-        return;
-    }
-    
-    // Initialize auth after a short delay
-    setTimeout(initializeAuth, 300);
-});
-
-/**
- * Initialize auth functionality
- */
-function initializeAuth() {
-    console.log('🔄 Initializing auth...');
-    
-    // Try multiple possible client names
-    const supabase = window.mindguardSupabase || window.supabase || window.supabaseClient;
-    console.log('Supabase client found:', !!supabase);
-    
-    if (!supabase || !supabase.auth) {
-        console.warn('Supabase client not available, using offline mode');
-        // We'll work in offline mode
-    }
-    
     // Initialize password toggles
     initializePasswordToggles();
     
     // Initialize form handlers
     initializeFormHandlers();
     
-    // Check auth state SAFELY (no redirects)
-    checkAuthStateSafely();
-}
+    // Check auth state
+    checkAuthState();
+});
 
 /**
- * SAFE version of checkAuthState - NO REDIRECTS
+ * Check authentication state
  */
-async function checkAuthStateSafely() {
-    console.log('🔐 Safe auth check (smart redirects)...');
-    
+async function checkAuthState() {
     try {
-        // Get current page
+        const supabase = window.supabaseClient;
+        if (!supabase) {
+            console.warn('Supabase client not initialized');
+            return;
+        }
+        
+        const { data: { session } } = await supabase.auth.getSession();
+        
         const currentPage = window.location.pathname;
-        console.log('📄 Current page:', currentPage);
         
-        // Try multiple possible client names
-        const supabase = window.mindguardSupabase || window.supabase || window.supabaseClient;
-        
-        if (!supabase || !supabase.auth) {
-            console.warn('Supabase not available - checking localStorage');
-            const storedSession = localStorage.getItem('mindguard_session');
-            console.log('📦 Stored session exists:', !!storedSession);
+        // If user is logged in and on auth pages, redirect to dashboard
+        if (session && (currentPage.includes('login.html') || currentPage.includes('register.html'))) {
+            window.location.href = 'index.html';
             return;
         }
         
-        // Check session
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-            console.warn('Session check error:', error.message);
-            const storedSession = localStorage.getItem('mindguard_session');
-            console.log('📦 Fallback to stored session:', !!storedSession);
+        // If user is not logged in and on protected pages, redirect to login
+        if (!session && (currentPage.includes('index.html') || currentPage.includes('history.html'))) {
+            window.location.href = 'login.html';
             return;
         }
-        
-        console.log('👤 Session exists:', !!session);
-        
-        if (session) {
-            // Store session in localStorage for offline fallback
-            localStorage.setItem('mindguard_session', JSON.stringify({
-                user: session.user,
-                expires_at: session.expires_at
-            }));
-            
-            // Log user info
-            console.log('👋 User:', session.user.email);
-            
-            // ==============================================
-            // 🔥 CRITICAL FIX: Redirect logged-in users from auth pages
-            // ==============================================
-            const isAuthPage = currentPage.includes('login.html') || currentPage.includes('register.html');
-            const isDashboardPage = currentPage.includes('index.html') || currentPage.includes('history.html');
-            
-            if (isAuthPage && session) {
-                console.log('✅ User logged in on auth page - redirecting to dashboard...');
-                
-                // Clear loop protection counters
-                sessionStorage.removeItem('page_load_count');
-                sessionStorage.removeItem('loop_protection_active');
-                
-                // Redirect after a short delay
-                setTimeout(() => {
-                    console.log('🔄 Redirecting to dashboard...');
-                    window.location.href = 'index.html';
-                }, 1000);
-                return;
-            }
-            
-            if (isDashboardPage && !session) {
-                console.log('❌ No session on dashboard page');
-                // Don't redirect - let the user stay on the page
-            }
-            
-        } else {
-            console.log('👤 No active session');
-            
-            // Check for stored session
-            const storedSession = localStorage.getItem('mindguard_session');
-            if (storedSession) {
-                console.log('📦 Using stored session from localStorage');
-            }
-            
-            // If on protected pages without session, suggest login
-            if (currentPage.includes('index.html') || currentPage.includes('history.html')) {
-                console.log('💡 Info: No session on protected page');
-                console.log('💡 Suggestion: Consider logging in if needed');
-            }
-        }
-        
     } catch (error) {
-        console.error('❌ Error in safe auth check:', error);
+        console.error('Error checking auth state:', error);
     }
 }
 
@@ -275,32 +130,9 @@ function setupLoginForm(form) {
         }
         
         // Get Supabase client
-        const supabase = window.mindguardSupabase || window.supabase || window.supabaseClient;
-        if (!supabase || !supabase.auth) {
-            showMessage('Working in offline mode. Login not available.', 'warning');
-            
-            // Store offline session for demo purposes
-            localStorage.setItem('mindguard_session', JSON.stringify({
-                user: {
-                    id: 'offline-user-' + Date.now(),
-                    email: email,
-                    created_at: new Date().toISOString()
-                },
-                expires_at: Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 days
-            }));
-            
-            showMessage('Using offline demo mode. You can explore the app features.', 'success');
-            
-            // Clear loop counters on successful "login"
-            sessionStorage.removeItem('page_load_count');
-            sessionStorage.removeItem('loop_protection_active');
-            
-            // Redirect after delay
-            setTimeout(() => {
-                console.log('🔄 Redirecting to dashboard (offline mode)');
-                window.location.href = 'index.html';
-            }, 2000);
-            
+        const supabase = window.supabaseClient;
+        if (!supabase) {
+            showMessage('Authentication service not available. Please try again later.', 'error');
             return;
         }
         
@@ -324,18 +156,14 @@ function setupLoginForm(form) {
             if (data?.user) {
                 showMessage('Login successful! Redirecting...', 'success');
                 
-                // Store session in localStorage for offline fallback
-                localStorage.setItem('mindguard_session', JSON.stringify({
-                    user: data.user,
-                    expires_at: data.session?.expires_at
+                // Store user info in localStorage if needed
+                localStorage.setItem('user', JSON.stringify({
+                    id: data.user.id,
+                    email: data.user.email
                 }));
-                
-                // Clear all loop protection counters
-                sessionStorage.clear();
                 
                 // Redirect to dashboard
                 setTimeout(() => {
-                    console.log('🔄 Redirecting to dashboard');
                     window.location.href = 'index.html';
                 }, 1500);
             }
@@ -410,32 +238,9 @@ function setupRegisterForm(form) {
         }
         
         // Get Supabase client
-        const supabase = window.mindguardSupabase || window.supabase || window.supabaseClient;
-        if (!supabase || !supabase.auth) {
-            showMessage('Registration service offline. You can explore the app in demo mode.', 'warning');
-            
-            // Create offline demo account
-            localStorage.setItem('mindguard_session', JSON.stringify({
-                user: {
-                    id: 'demo-user-' + Date.now(),
-                    email: email,
-                    user_metadata: { full_name: fullName },
-                    created_at: new Date().toISOString()
-                },
-                expires_at: Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 days
-            }));
-            
-            showMessage('Demo account created! Redirecting to dashboard...', 'success');
-            
-            // Clear loop counters
-            sessionStorage.clear();
-            
-            // Redirect after delay
-            setTimeout(() => {
-                console.log('🔄 Redirecting to dashboard (demo mode)');
-                window.location.href = 'index.html';
-            }, 2000);
-            
+        const supabase = window.supabaseClient;
+        if (!supabase) {
+            showMessage('Registration service not available. Please try again later.', 'error');
             return;
         }
         
@@ -465,22 +270,12 @@ function setupRegisterForm(form) {
             if (data?.user) {
                 showMessage('Account created successfully! Please check your email to confirm your account.', 'success');
                 
-                // Also store in localStorage for immediate access
-                localStorage.setItem('mindguard_session', JSON.stringify({
-                    user: data.user,
-                    expires_at: Date.now() + 24 * 60 * 60 * 1000 // 24 hours temporary access
-                }));
-                
-                // Clear loop counters
-                sessionStorage.clear();
-                
                 // Clear form
                 form.reset();
                 
-                // Redirect to dashboard for immediate exploration
+                // Redirect to login after delay
                 setTimeout(() => {
-                    console.log('🔄 Redirecting to dashboard');
-                    window.location.href = 'index.html';
+                    window.location.href = 'login.html';
                 }, 3000);
             }
             
@@ -511,19 +306,16 @@ function setupRegisterForm(form) {
  */
 async function signOut() {
     try {
-        console.log('👋 Signing out...');
+        const supabase = window.supabaseClient;
         
-        // Clear ALL storage
-        sessionStorage.clear();
-        localStorage.removeItem('mindguard_session');
-        localStorage.removeItem('user');
-        
-        // Try to sign out from Supabase
-        const supabase = window.mindguardSupabase || window.supabase || window.supabaseClient;
-        if (supabase && supabase.auth) {
+        if (supabase) {
             const { error } = await supabase.auth.signOut();
-            if (error) console.warn('Supabase sign out error:', error);
+            if (error) throw error;
         }
+        
+        // Clear local storage
+        localStorage.removeItem('user');
+        localStorage.removeItem('journalEntries'); // Optional: clear journal data on logout
         
         // Show message
         showToast({
@@ -532,9 +324,8 @@ async function signOut() {
             type: "success"
         });
         
-        // Redirect to login after delay
+        // Redirect to login
         setTimeout(() => {
-            console.log('🔄 Redirecting to login page');
             window.location.href = 'login.html';
         }, 1000);
         
@@ -547,10 +338,6 @@ async function signOut() {
         });
     }
 }
-
-// ==============================================
-// HELPER FUNCTIONS (Keep all existing helpers)
-// ==============================================
 
 /**
  * Find associated password input for toggle button
@@ -756,41 +543,6 @@ function showToast({ title, description, type = 'success' }) {
     }, 5000);
 }
 
-// ==============================================
-// GLOBAL FUNCTIONS & INITIALIZATION
-// ==============================================
-
 // Make functions available globally
 window.signOut = signOut;
 window.showToast = showToast;
-
-// Reset function to clear loop protection
-window.resetLoopProtection = function() {
-    console.log('🔄 Resetting loop protection...');
-    sessionStorage.clear();
-    localStorage.removeItem('mindguard_session');
-    console.log('✅ Storage cleared. Reloading page...');
-    setTimeout(() => location.reload(), 500);
-};
-
-// Debug function to check current state
-window.checkAuthStatus = async function() {
-    console.log('🔍 Checking auth status...');
-    const supabase = window.mindguardSupabase || window.supabase || window.supabaseClient;
-    
-    if (!supabase || !supabase.auth) {
-        console.log('❌ Supabase client not available');
-        return;
-    }
-    
-    const { data: { session }, error } = await supabase.auth.getSession();
-    console.log('Session:', session ? '✅ EXISTS' : '❌ NONE');
-    console.log('Error:', error);
-    console.log('Current page:', window.location.pathname);
-    console.log('Page load count:', sessionStorage.getItem('page_load_count'));
-    console.log('Loop protection:', sessionStorage.getItem('loop_protection_active'));
-    
-    return session;
-};
-
-console.log('✅ auth.js loaded successfully');
