@@ -1,6 +1,12 @@
 class JournalService {
     constructor() {
-        this.supabase = window.supabaseClient;
+        // FIX: Use mindguardSupabase (from your logs) or fallback to other names
+        this.supabase = window.mindguardSupabase || window.supabase || window.supabaseClient;
+        console.log('JournalService initialized, supabase available:', !!this.supabase);
+        
+        if (!this.supabase) {
+            console.error('CRITICAL: No Supabase client found!');
+        }
     }
 
     /**
@@ -8,7 +14,8 @@ class JournalService {
      */
     async saveJournalEntry(entryData) {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            // FIX: Use this.supabase instead of supabase
+            const { data: { user } } = await this.supabase.auth.getUser();
             if (!user) {
                 console.error('No user logged in');
                 return null;
@@ -24,15 +31,20 @@ class JournalService {
                 warnings: entryData.analysis?.warnings || [],
                 grounding_techniques: entryData.analysis?.grounding_techniques || [],
                 coping_strategies: entryData.analysis?.coping_strategies || []
-           };
+            };
         
-            const { data, error } = await supabase
+            console.log('Saving entry for user:', user.email);
+            
+            const { data, error } = await this.supabase
                 .from('journal_entries')
                 .insert([entryToSave])
                 .select()
                 .single();
             
-            if (error) throw error;
+            if (error) {
+                console.error('Save error:', error);
+                throw error;
+            }
         
             return {
                 id: data.id,
@@ -60,20 +72,34 @@ class JournalService {
      */
     async getAllEntries() {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            // FIX: Use this.supabase instead of supabase
+            const { data: { user } } = await this.supabase.auth.getUser();
             if (!user) {
                 console.log('No user logged in');
                 return [];
             }
         
-            const { data, error } = await supabase
+            console.log('Fetching entries for user:', user.email);
+            
+            const { data, error } = await this.supabase
                 .from('journal_entries')
                 .select('*')
                 .eq('user_id', user.id)
                 .order('created_at', { ascending: false });
             
-            if (error) throw error;
+            if (error) {
+                console.error('Query error details:', {
+                    message: error.message,
+                    code: error.code,
+                    details: error.details,
+                    hint: error.hint
+                });
+                // Return empty array instead of throwing to prevent refresh loops
+                return [];
+            }
         
+            console.log(`Found ${data?.length || 0} entries`);
+            
             // Transform data to match expected structure
             return (data || []).map(entry => ({
                 id: entry.id,
@@ -95,6 +121,7 @@ class JournalService {
             }));
         } catch (error) {
             console.error('Error fetching entries:', error);
+            // Return empty array instead of throwing to prevent refresh loops
             return [];
         }
     }
@@ -176,33 +203,42 @@ class JournalService {
      */
     async deleteEntry(entryId) {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            // FIX: Use this.supabase instead of supabase
+            const { data: { user } } = await this.supabase.auth.getUser();
             if (!user) {
                 console.log('No user logged in');
                 return false;
             }
         
+            console.log('Deleting entry for user:', user.email);
+            
             // Verify ownership first
-            const { data: entry, error: fetchError } = await supabase
+            const { data: entry, error: fetchError } = await this.supabase
                 .from('journal_entries')
                 .select('user_id')
                 .eq('id', entryId)
                 .single();
             
-            if (fetchError) throw fetchError;
+            if (fetchError) {
+                console.error('Fetch error:', fetchError);
+                return false;
+            }
         
             if (entry.user_id !== user.id) {
                 console.error('User does not own this entry');
                 return false;
             }
         
-            const { error } = await supabase
+            const { error } = await this.supabase
                 .from('journal_entries')
                 .delete()
                 .eq('id', entryId)
                 .eq('user_id', user.id);
             
-            if (error) throw error;
+            if (error) {
+                console.error('Delete error:', error);
+                return false;
+            }
         
             // Also delete from user-specific localStorage
             const localStorageKey = `journalEntries_${user.id}`;
@@ -211,6 +247,7 @@ class JournalService {
             const filteredEntries = entries.filter(e => e.id !== entryId);
             localStorage.setItem(localStorageKey, JSON.stringify(filteredEntries));
         
+            console.log('Entry deleted successfully');
             return true;
         } catch (error) {
             console.error('Error deleting entry:', error);
@@ -313,6 +350,11 @@ class JournalService {
      */
     async syncWithLocalStorage() {
         try {
+            if (!this.supabase) {
+                console.error('Supabase client not initialized');
+                return { synced: 0, total: 0 };
+            }
+
             // Get entries from localStorage
             const savedEntries = localStorage.getItem('journalEntries');
             if (!savedEntries) return { synced: 0, total: 0 };
@@ -343,3 +385,40 @@ class JournalService {
 
 // Create global instance
 window.journalService = new JournalService();
+
+// Debug function to test the service
+window.testJournalService = async function() {
+    console.log('=== Testing JournalService ===');
+    
+    // Check if service is initialized
+    console.log('Service instance:', !!window.journalService);
+    console.log('Service supabase client:', !!window.journalService?.supabase);
+    console.log('Global mindguardSupabase:', !!window.mindguardSupabase);
+    
+    // Test getAllEntries
+    console.log('Testing getAllEntries...');
+    try {
+        const entries = await window.journalService.getAllEntries();
+        console.log(`✅ Success! Got ${entries.length} entries`);
+        if (entries.length > 0) {
+            console.log('First entry sample:', {
+                id: entries[0].id,
+                title: entries[0].title,
+                content_preview: entries[0].content?.substring(0, 50) + '...',
+                created_at: entries[0].created_at
+            });
+        }
+        return entries;
+    } catch (error) {
+        console.error('❌ Test failed:', error);
+        return null;
+    }
+};
+
+// Auto-test when page loads (optional)
+setTimeout(() => {
+    console.log('JournalService auto-test starting...');
+    if (window.journalService && window.journalService.supabase) {
+        window.testJournalService();
+    }
+}, 3000);
