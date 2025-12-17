@@ -1,6 +1,4 @@
 // DOM elements
-const loadingState = document.getElementById('loading-state');
-const dashboardContent = document.getElementById('dashboard-content');
 const entriesContainer = document.getElementById('entries-container');
 const alertDialog = document.getElementById('alert-dialog');
 const cancelBtn = document.getElementById('cancel-btn');
