@@ -1,4 +1,6 @@
 // DOM elements
+const loadingState = document.getElementById('loading-state');
+const dashboardContent = document.getElementById('dashboard-content');
 const entriesContainer = document.getElementById('entries-container');
 const alertDialog = document.getElementById('alert-dialog');
 const cancelBtn = document.getElementById('cancel-btn');
@@ -12,32 +14,48 @@ let isDeleting = false;
 
 // Initialize page
 window.addEventListener('DOMContentLoaded', async () => {
+    console.log('History page loading...');
+    
+    // Check if DOM elements are found
+    console.log('Loading state element:', loadingState);
+    console.log('Dashboard content element:', dashboardContent);
+    
     // Check authentication
     try {
+        // Wait a moment to ensure supabase is loaded
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (!session) {
+            console.log('No session found, redirecting to login');
             window.location.href = 'login.html';
             return;
         }
         
+        console.log('User authenticated:', session.user.email);
+        
         // Proceed with loading history
-        loadingState.classList.remove('hidden');
-        dashboardContent.classList.add('hidden');
+        if (loadingState) {
+            loadingState.style.display = 'flex'; // Use style.display, not classList
+        }
+        
+        if (dashboardContent) {
+            dashboardContent.style.display = 'none';
+        }
         
         // Load entries from localStorage
         await loadEntriesFromStorage();
         
         // Set up event listeners
-        setTimeout(() => {
-            setupEventListeners();
-        }, 300);
+        setupEventListeners();
         
     } catch (error) {
         console.error('Auth check error:', error);
         window.location.href = 'login.html';
     }
 });
+
 
 // Load entries from localStorage
 async function loadEntriesFromStorage() {
@@ -70,7 +88,7 @@ async function loadEntriesFromStorage() {
             console.log('Loading from Supabase via journalService...');
             journalEntries = await window.journalService.getAllEntries();
             
-            if (journalEntries.length > 0) {
+            if (journalEntries && journalEntries.length > 0) {
                 console.log(`Loaded ${journalEntries.length} entries from Supabase for user ${user.email}`);
                 
                 // Save to localStorage as backup
@@ -137,7 +155,7 @@ async function loadEntriesFromStorage() {
             }
         }
         
-        console.log('Final journal entries for current user:', journalEntries.length);
+        console.log('Final journal entries for current user:', journalEntries ? journalEntries.length : 0);
         
     } catch (error) {
         console.error('Error loading entries:', error);
@@ -147,12 +165,16 @@ async function loadEntriesFromStorage() {
             description: "Could not load your journal history. Please try again.",
             type: "destructive"
         });
+    } finally {
+        // Always show dashboard content even if there was an error
+        if (loadingState) {
+            loadingState.style.display = 'none';
+        }
+        if (dashboardContent) {
+            dashboardContent.style.display = 'block';
+        }
+        renderEntries();
     }
-    
-    // Render entries
-    loadingState.classList.add('hidden');
-    dashboardContent.classList.remove('hidden');
-    renderEntries();
 }
 
 // Enhanced AI Analysis with all 5 components (same as script.js)
@@ -1283,10 +1305,16 @@ async function handleDeleteConfirm() {
     if (!entryToDelete || isDeleting) return;
     
     isDeleting = true;
-    confirmDeleteBtn.textContent = "Deleting...";
-    confirmDeleteBtn.classList.add('disabled');
+    if (confirmDeleteBtn) {
+        confirmDeleteBtn.textContent = "Deleting...";
+        confirmDeleteBtn.classList.add('disabled');
+    }
     
     try {
+        // Get current user for localStorage key
+        const { data: { user } } = await supabase.auth.getUser();
+        const userId = user?.id;
+        
         // Try to delete from Supabase
         let deleteSuccess = false;
         
@@ -1299,8 +1327,11 @@ async function handleDeleteConfirm() {
         if (entryIndex !== -1) {
             journalEntries.splice(entryIndex, 1);
             
-            // Update localStorage
-            localStorage.setItem('journalEntries', JSON.stringify(journalEntries));
+            // Update user-specific localStorage
+            if (userId) {
+                const localStorageKey = `journalEntries_${userId}`;
+                localStorage.setItem(localStorageKey, JSON.stringify(journalEntries.slice(0, 50)));
+            }
             
             // Reset expanded entry if it was deleted
             if (expandedEntryId === entryToDelete) {
@@ -1331,8 +1362,10 @@ async function handleDeleteConfirm() {
         // Reset state
         isDeleting = false;
         closeDeleteDialog();
-        confirmDeleteBtn.textContent = "Delete";
-        confirmDeleteBtn.classList.remove('disabled');
+        if (confirmDeleteBtn) {
+            confirmDeleteBtn.textContent = "Delete";
+            confirmDeleteBtn.classList.remove('disabled');
+        }
     }
 }
 
@@ -1366,8 +1399,13 @@ function showToast({ title, description, type = "success" }) {
     // Auto-remove after 5 seconds
     setTimeout(() => {
         if (toast.parentNode) {
-            toast.style.animation = 'slideInFromRight 0.3s ease reverse forwards';
-            setTimeout(() => toast.remove(), 300);
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(100%)';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.remove();
+                }
+            }, 300);
         }
     }, 5000);
 }
@@ -1451,3 +1489,5 @@ window.closeDeleteDialog = closeDeleteDialog;
 window.signOut = signOut;
 window.navigateToDashboard = navigateToDashboard;
 window.generateEnhancedAnalysis = generateEnhancedAnalysis;
+
+console.log('history.js loaded successfully');
