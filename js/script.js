@@ -1119,7 +1119,6 @@ function getCardIcon(type) {
 
 // Navigation functions
 function navigateToHistory() {
-    // Show toast notification
     showToast({
         title: "Navigating to History",
         description: "Loading your journal history...",
