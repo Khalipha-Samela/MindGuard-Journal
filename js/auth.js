@@ -1,5 +1,34 @@
 // DOM Ready
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded in auth.js');
+    
+    // Wait for Supabase to be ready
+    if (window.supabaseReady) {
+        initializeAuth();
+    } else {
+        // Listen for supabaseReady event
+        window.addEventListener('supabaseReady', initializeAuth);
+        
+        // Also try after a delay
+        setTimeout(initializeAuth, 1000);
+    }
+});
+
+/**
+ * Initialize auth functionality after Supabase is ready
+ */
+function initializeAuth() {
+    console.log('Initializing auth...');
+    
+    // Try multiple possible client names
+    const supabase = window.mindguardSupabase || window.supabase || window.supabaseClient;
+    console.log('Supabase client found:', !!supabase);
+    
+    if (!supabase || !supabase.auth) {
+        console.warn('Supabase client not available, using offline mode');
+        // We'll work in offline mode
+    }
+    
     // Initialize password toggles
     initializePasswordToggles();
     
@@ -8,36 +37,106 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Check auth state
     checkAuthState();
-});
+}
 
 /**
  * Check authentication state
  */
 async function checkAuthState() {
     try {
-        const supabase = window.supabaseClient;
-        if (!supabase) {
-            console.warn('Supabase client not initialized');
+        console.log('Checking auth state...');
+        
+        // Try multiple possible client names
+        const supabase = window.mindguardSupabase || window.supabase || window.supabaseClient;
+        
+        if (!supabase || !supabase.auth) {
+            console.warn('Supabase client not available, checking localStorage for offline mode');
+            
+            // Check if we have a stored session in localStorage
+            const storedSession = localStorage.getItem('mindguard_session');
+            const currentPage = window.location.pathname;
+            
+            // If on protected pages without session, redirect to login
+            if (!storedSession && (currentPage.includes('index.html') || currentPage.includes('history.html'))) {
+                console.log('No session found, redirecting to login');
+                window.location.href = 'login.html';
+                return;
+            }
+            
+            // If on auth pages with stored session, redirect to dashboard
+            if (storedSession && (currentPage.includes('login.html') || currentPage.includes('register.html'))) {
+                console.log('Stored session found, redirecting to dashboard');
+                window.location.href = 'index.html';
+                return;
+            }
+            
             return;
         }
         
-        const { data: { session } } = await supabase.auth.getSession();
+        // We have Supabase client, check session
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+            console.warn('Session check error (continuing offline):', error.message);
+            
+            // Check localStorage fallback
+            const storedSession = localStorage.getItem('mindguard_session');
+            const currentPage = window.location.pathname;
+            
+            if (!storedSession && (currentPage.includes('index.html') || currentPage.includes('history.html'))) {
+                window.location.href = 'login.html';
+            }
+            return;
+        }
         
         const currentPage = window.location.pathname;
         
         // If user is logged in and on auth pages, redirect to dashboard
         if (session && (currentPage.includes('login.html') || currentPage.includes('register.html'))) {
+            console.log('User logged in, redirecting from auth page to dashboard');
+            
+            // Store session in localStorage for offline fallback
+            localStorage.setItem('mindguard_session', JSON.stringify({
+                user: session.user,
+                expires_at: session.expires_at
+            }));
+            
             window.location.href = 'index.html';
             return;
         }
         
         // If user is not logged in and on protected pages, redirect to login
         if (!session && (currentPage.includes('index.html') || currentPage.includes('history.html'))) {
-            window.location.href = 'login.html';
+            console.log('User not logged in, redirecting to login');
+            
+            // Check localStorage fallback
+            const storedSession = localStorage.getItem('mindguard_session');
+            if (!storedSession) {
+                window.location.href = 'login.html';
+            }
             return;
         }
+        
+        // Store session in localStorage for offline fallback
+        if (session) {
+            localStorage.setItem('mindguard_session', JSON.stringify({
+                user: session.user,
+                expires_at: session.expires_at
+            }));
+        }
+        
     } catch (error) {
         console.error('Error checking auth state:', error);
+        
+        // Fallback to localStorage check
+        const currentPage = window.location.pathname;
+        const storedSession = localStorage.getItem('mindguard_session');
+        
+        if (!storedSession && (currentPage.includes('index.html') || currentPage.includes('history.html'))) {
+            setTimeout(() => {
+                window.location.href = 'login.html';
+            }, 1000);
+        }
     }
 }
 
@@ -130,9 +229,27 @@ function setupLoginForm(form) {
         }
         
         // Get Supabase client
-        const supabase = window.supabaseClient;
-        if (!supabase) {
-            showMessage('Authentication service not available. Please try again later.', 'error');
+        const supabase = window.mindguardSupabase || window.supabase || window.supabaseClient;
+        if (!supabase || !supabase.auth) {
+            showMessage('Working in offline mode. Login not available.', 'warning');
+            
+            // Store offline session for demo purposes
+            localStorage.setItem('mindguard_session', JSON.stringify({
+                user: {
+                    id: 'offline-user-' + Date.now(),
+                    email: email,
+                    created_at: new Date().toISOString()
+                },
+                expires_at: Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 days
+            }));
+            
+            showMessage('Using offline demo mode. You can explore the app features.', 'success');
+            
+            // Redirect after delay
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 2000);
+            
             return;
         }
         
@@ -156,10 +273,10 @@ function setupLoginForm(form) {
             if (data?.user) {
                 showMessage('Login successful! Redirecting...', 'success');
                 
-                // Store user info in localStorage if needed
-                localStorage.setItem('user', JSON.stringify({
-                    id: data.user.id,
-                    email: data.user.email
+                // Store session in localStorage for offline fallback
+                localStorage.setItem('mindguard_session', JSON.stringify({
+                    user: data.user,
+                    expires_at: data.session?.expires_at
                 }));
                 
                 // Redirect to dashboard
@@ -180,9 +297,25 @@ function setupLoginForm(form) {
                 errorMessage = 'Please confirm your email before logging in.';
             } else if (error.message.includes('rate limit')) {
                 errorMessage = 'Too many attempts. Please try again later.';
+            } else if (error.message.includes('Supabase not available')) {
+                errorMessage = 'Authentication service offline. Using demo mode.';
+                
+                // Create offline demo session
+                localStorage.setItem('mindguard_session', JSON.stringify({
+                    user: {
+                        id: 'demo-user-' + Date.now(),
+                        email: email,
+                        created_at: new Date().toISOString()
+                    },
+                    expires_at: Date.now() + 24 * 60 * 60 * 1000 // 24 hours
+                }));
+                
+                setTimeout(() => {
+                    window.location.href = 'index.html';
+                }, 2000);
             }
             
-            showMessage(errorMessage, 'error');
+            showMessage(errorMessage, error.message.includes('offline') ? 'warning' : 'error');
         } finally {
             // Reset button
             submitBtn.textContent = originalText;
@@ -238,9 +371,28 @@ function setupRegisterForm(form) {
         }
         
         // Get Supabase client
-        const supabase = window.supabaseClient;
-        if (!supabase) {
-            showMessage('Registration service not available. Please try again later.', 'error');
+        const supabase = window.mindguardSupabase || window.supabase || window.supabaseClient;
+        if (!supabase || !supabase.auth) {
+            showMessage('Registration service offline. You can explore the app in demo mode.', 'warning');
+            
+            // Create offline demo account
+            localStorage.setItem('mindguard_session', JSON.stringify({
+                user: {
+                    id: 'demo-user-' + Date.now(),
+                    email: email,
+                    user_metadata: { full_name: fullName },
+                    created_at: new Date().toISOString()
+                },
+                expires_at: Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 days
+            }));
+            
+            showMessage('Demo account created! Redirecting to dashboard...', 'success');
+            
+            // Redirect after delay
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 2000);
+            
             return;
         }
         
@@ -270,12 +422,18 @@ function setupRegisterForm(form) {
             if (data?.user) {
                 showMessage('Account created successfully! Please check your email to confirm your account.', 'success');
                 
+                // Also store in localStorage for immediate access
+                localStorage.setItem('mindguard_session', JSON.stringify({
+                    user: data.user,
+                    expires_at: Date.now() + 24 * 60 * 60 * 1000 // 24 hours temporary access
+                }));
+                
                 // Clear form
                 form.reset();
                 
-                // Redirect to login after delay
+                // Redirect to dashboard for immediate exploration
                 setTimeout(() => {
-                    window.location.href = 'login.html';
+                    window.location.href = 'index.html';
                 }, 3000);
             }
             
@@ -290,9 +448,26 @@ function setupRegisterForm(form) {
                 errorMessage = 'Password is too weak. Please use a stronger password.';
             } else if (error.message.includes('rate limit')) {
                 errorMessage = 'Too many attempts. Please try again later.';
+            } else if (error.message.includes('Supabase not available')) {
+                errorMessage = 'Service offline. Created demo account instead.';
+                
+                // Create offline demo
+                localStorage.setItem('mindguard_session', JSON.stringify({
+                    user: {
+                        id: 'demo-user-' + Date.now(),
+                        email: email,
+                        user_metadata: { full_name: fullName },
+                        created_at: new Date().toISOString()
+                    },
+                    expires_at: Date.now() + 24 * 60 * 60 * 1000
+                }));
+                
+                setTimeout(() => {
+                    window.location.href = 'index.html';
+                }, 2000);
             }
             
-            showMessage(errorMessage, 'error');
+            showMessage(errorMessage, error.message.includes('offline') ? 'warning' : 'error');
         } finally {
             // Reset button
             submitBtn.textContent = originalText;
@@ -306,16 +481,17 @@ function setupRegisterForm(form) {
  */
 async function signOut() {
     try {
-        const supabase = window.supabaseClient;
+        // Try multiple possible client names
+        const supabase = window.mindguardSupabase || window.supabase || window.supabaseClient;
         
-        if (supabase) {
+        if (supabase && supabase.auth) {
             const { error } = await supabase.auth.signOut();
-            if (error) throw error;
+            if (error) console.warn('Supabase sign out error:', error);
         }
         
         // Clear local storage
+        localStorage.removeItem('mindguard_session');
         localStorage.removeItem('user');
-        localStorage.removeItem('journalEntries'); // Optional: clear journal data on logout
         
         // Show message
         showToast({
@@ -546,3 +722,6 @@ function showToast({ title, description, type = 'success' }) {
 // Make functions available globally
 window.signOut = signOut;
 window.showToast = showToast;
+window.initializeAuth = initializeAuth; // Add this for manual initialization if needed
+
+console.log('auth.js loaded successfully');
