@@ -1,4 +1,6 @@
 // DOM elements
+const loadingState = document.getElementById('loading-state');
+const dashboardContent = document.getElementById('dashboard-content');
 const entriesContainer = document.getElementById('entries-container');
 const alertDialog = document.getElementById('alert-dialog');
 const cancelBtn = document.getElementById('cancel-btn');
@@ -12,26 +14,34 @@ let isDeleting = false;
 
 // Initialize page
 window.addEventListener('DOMContentLoaded', async () => {
+    console.log('History page loading...');
+    
     // Check authentication
     try {
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (!session) {
+            console.log('No session found, redirecting to login');
             window.location.href = 'login.html';
             return;
         }
         
-        // Proceed with loading history
-        loadingState.classList.remove('hidden');
-        dashboardContent.classList.add('hidden');
+        console.log('User authenticated:', session.user.email);
         
-        // Load entries from localStorage
+        // Proceed with loading history
+        // Make sure loadingState and dashboardContent exist before using them
+        if (loadingState) {
+            loadingState.style.display = 'flex'; // Use style.display instead of classList
+        }
+        if (dashboardContent) {
+            dashboardContent.style.display = 'none';
+        }
+        
+        // Load entries from storage
         await loadEntriesFromStorage();
         
         // Set up event listeners
-        setTimeout(() => {
-            setupEventListeners();
-        }, 300);
+        setupEventListeners();
         
     } catch (error) {
         console.error('Auth check error:', error);
