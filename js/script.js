@@ -11,31 +11,34 @@ const clearBtn = document.getElementById('clear-btn');
 
 // Simulate initial loading state
 window.addEventListener('DOMContentLoaded', async () => {
-    // Check if user is authenticated
+    const supabase = window.supabaseClient;
+
     try {
         const { data: { session }, error } = await supabase.auth.getSession();
-        
+
         if (!session) {
-            // Not authenticated, redirect to login
-            window.location.href = 'login.html';
+            window.location.replace('login.html');
             return;
         }
-        
-        // User is authenticated, proceed with loading
+
+        // User authenticated → show loader
         loadingState.style.display = 'flex';
         dashboardContent.style.display = 'none';
-                
+
+        // Simulate loading / init app
         setTimeout(() => {
             loadingState.style.display = 'none';
             dashboardContent.style.display = 'block';
-                    
-            // Initialize word count
+
+            // Show page AFTER auth + init
+            document.body.style.visibility = 'visible';
+
             updateWordCount();
-        }, 1000);
-        
-    } catch (error) {
-        console.error('Auth check error:', error);
-        window.location.href = 'login.html';
+        }, 800);
+
+    } catch (err) {
+        console.error('Auth check error:', err);
+        window.location.replace('login.html');
     }
 });
 
