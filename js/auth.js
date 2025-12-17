@@ -1,24 +1,81 @@
+// auth.js - FIXED VERSION (No Infinite Loop)
+console.log('🔐 auth.js loading...');
+
+// ==============================================
+// LOOP PROTECTION SYSTEM
+// ==============================================
+
+// Track page loads to detect loops
+let pageLoadCount = parseInt(sessionStorage.getItem('page_load_count') || '0');
+pageLoadCount++;
+sessionStorage.setItem('page_load_count', pageLoadCount.toString());
+console.log(`📊 Page load #${pageLoadCount}`);
+
+// If too many reloads, activate loop protection
+if (pageLoadCount > 5) {
+    console.error('🔄 TOO MANY RELOADS - Activating loop protection');
+    sessionStorage.setItem('loop_protection_active', 'true');
+    
+    // Show warning to user
+    setTimeout(() => {
+        if (document.body) {
+            const warning = document.createElement('div');
+            warning.id = 'loop-protection-warning';
+            warning.style.cssText = `
+                position: fixed;
+                top: 10px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: #dc2626;
+                color: white;
+                padding: 15px 20px;
+                border-radius: 8px;
+                z-index: 99999;
+                font-family: system-ui, -apple-system, sans-serif;
+                font-size: 14px;
+                max-width: 400px;
+                text-align: center;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            `;
+            warning.innerHTML = `
+                <strong>⚠️ Loop Detected</strong><br>
+                Page has reloaded ${pageLoadCount} times.<br>
+                <button onclick="sessionStorage.clear(); localStorage.removeItem('mindguard_session'); location.reload();" 
+                        style="margin-top: 10px; padding: 8px 16px; background: white; color: #dc2626; border: none; border-radius: 4px; cursor: pointer;">
+                    Reset & Reload
+                </button>
+            `;
+            document.body.appendChild(warning);
+        }
+    }, 500);
+}
+
+// Check if loop protection is active
+const LOOP_PROTECTION_ACTIVE = sessionStorage.getItem('loop_protection_active') === 'true';
+
+// ==============================================
+// MAIN AUTH FUNCTIONS
+// ==============================================
+
 // DOM Ready
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM loaded in auth.js');
+    console.log('✅ DOM loaded in auth.js');
     
-    // Wait for Supabase to be ready
-    if (window.supabaseReady) {
-        initializeAuth();
-    } else {
-        // Listen for supabaseReady event
-        window.addEventListener('supabaseReady', initializeAuth);
-        
-        // Also try after a delay
-        setTimeout(initializeAuth, 1000);
+    // Skip auth if loop protection is active
+    if (LOOP_PROTECTION_ACTIVE) {
+        console.warn('🛑 Loop protection active - skipping auth initialization');
+        return;
     }
+    
+    // Initialize auth after a short delay
+    setTimeout(initializeAuth, 300);
 });
 
 /**
- * Initialize auth functionality after Supabase is ready
+ * Initialize auth functionality
  */
 function initializeAuth() {
-    console.log('Initializing auth...');
+    console.log('🔄 Initializing auth...');
     
     // Try multiple possible client names
     const supabase = window.mindguardSupabase || window.supabase || window.supabaseClient;
@@ -35,108 +92,77 @@ function initializeAuth() {
     // Initialize form handlers
     initializeFormHandlers();
     
-    // Check auth state
-    checkAuthState();
+    // Check auth state SAFELY (no redirects)
+    checkAuthStateSafely();
 }
 
 /**
- * Check authentication state
+ * SAFE version of checkAuthState - NO REDIRECTS
  */
-async function checkAuthState() {
+async function checkAuthStateSafely() {
+    console.log('🔐 Safe auth check (no redirects)...');
+    
     try {
-        console.log('Checking auth state...');
+        // Get current page
+        const currentPage = window.location.pathname;
+        console.log('📄 Current page:', currentPage);
         
         // Try multiple possible client names
         const supabase = window.mindguardSupabase || window.supabase || window.supabaseClient;
         
         if (!supabase || !supabase.auth) {
-            console.warn('Supabase client not available, checking localStorage for offline mode');
-            
-            // Check if we have a stored session in localStorage
+            console.warn('Supabase not available - checking localStorage');
             const storedSession = localStorage.getItem('mindguard_session');
-            const currentPage = window.location.pathname;
-            
-            // If on protected pages without session, redirect to login
-            if (!storedSession && (currentPage.includes('index.html') || currentPage.includes('history.html'))) {
-                console.log('No session found, redirecting to login');
-                window.location.href = 'login.html';
-                return;
-            }
-            
-            // If on auth pages with stored session, redirect to dashboard
-            if (storedSession && (currentPage.includes('login.html') || currentPage.includes('register.html'))) {
-                console.log('Stored session found, redirecting to dashboard');
-                window.location.href = 'index.html';
-                return;
-            }
-            
+            console.log('📦 Stored session exists:', !!storedSession);
             return;
         }
         
-        // We have Supabase client, check session
+        // Check session
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
-            console.warn('Session check error (continuing offline):', error.message);
-            
-            // Check localStorage fallback
+            console.warn('Session check error:', error.message);
             const storedSession = localStorage.getItem('mindguard_session');
-            const currentPage = window.location.pathname;
-            
-            if (!storedSession && (currentPage.includes('index.html') || currentPage.includes('history.html'))) {
-                window.location.href = 'login.html';
-            }
+            console.log('📦 Fallback to stored session:', !!storedSession);
             return;
         }
         
-        const currentPage = window.location.pathname;
+        console.log('👤 Session exists:', !!session);
         
-        // If user is logged in and on auth pages, redirect to dashboard
-        if (session && (currentPage.includes('login.html') || currentPage.includes('register.html'))) {
-            console.log('User logged in, redirecting from auth page to dashboard');
-            
+        if (session) {
             // Store session in localStorage for offline fallback
             localStorage.setItem('mindguard_session', JSON.stringify({
                 user: session.user,
                 expires_at: session.expires_at
             }));
             
-            window.location.href = 'index.html';
-            return;
-        }
-        
-        // If user is not logged in and on protected pages, redirect to login
-        if (!session && (currentPage.includes('index.html') || currentPage.includes('history.html'))) {
-            console.log('User not logged in, redirecting to login');
+            // Log user info
+            console.log('👋 User:', session.user.email);
             
-            // Check localStorage fallback
-            const storedSession = localStorage.getItem('mindguard_session');
-            if (!storedSession) {
-                window.location.href = 'login.html';
+            // If on auth pages, suggest manual navigation (no auto-redirect)
+            if (currentPage.includes('login.html') || currentPage.includes('register.html')) {
+                console.log('💡 Info: User is logged in and on auth page');
+                console.log('💡 Suggestion: Consider navigating to dashboard manually');
             }
-            return;
-        }
-        
-        // Store session in localStorage for offline fallback
-        if (session) {
-            localStorage.setItem('mindguard_session', JSON.stringify({
-                user: session.user,
-                expires_at: session.expires_at
-            }));
+        } else {
+            console.log('👤 No active session');
+            
+            // Check for stored session
+            const storedSession = localStorage.getItem('mindguard_session');
+            if (storedSession) {
+                console.log('📦 Using stored session from localStorage');
+            }
+            
+            // If on protected pages, log info (no redirect)
+            if (currentPage.includes('index.html') || currentPage.includes('history.html')) {
+                console.log('💡 Info: No session on protected page');
+                console.log('💡 Suggestion: Consider logging in if needed');
+            }
         }
         
     } catch (error) {
-        console.error('Error checking auth state:', error);
-        
-        // Fallback to localStorage check
-        const currentPage = window.location.pathname;
-        const storedSession = localStorage.getItem('mindguard_session');
-        
-        if (!storedSession && (currentPage.includes('index.html') || currentPage.includes('history.html'))) {
-            setTimeout(() => {
-                window.location.href = 'login.html';
-            }, 1000);
-        }
+        console.error('❌ Error in safe auth check:', error);
+        // NO REDIRECTS - just log the error
     }
 }
 
@@ -245,8 +271,13 @@ function setupLoginForm(form) {
             
             showMessage('Using offline demo mode. You can explore the app features.', 'success');
             
+            // Clear loop counters on successful "login"
+            sessionStorage.removeItem('page_load_count');
+            sessionStorage.removeItem('loop_protection_active');
+            
             // Redirect after delay
             setTimeout(() => {
+                console.log('🔄 Redirecting to dashboard (offline mode)');
                 window.location.href = 'index.html';
             }, 2000);
             
@@ -279,8 +310,12 @@ function setupLoginForm(form) {
                     expires_at: data.session?.expires_at
                 }));
                 
+                // Clear all loop protection counters
+                sessionStorage.clear();
+                
                 // Redirect to dashboard
                 setTimeout(() => {
+                    console.log('🔄 Redirecting to dashboard');
                     window.location.href = 'index.html';
                 }, 1500);
             }
@@ -297,25 +332,9 @@ function setupLoginForm(form) {
                 errorMessage = 'Please confirm your email before logging in.';
             } else if (error.message.includes('rate limit')) {
                 errorMessage = 'Too many attempts. Please try again later.';
-            } else if (error.message.includes('Supabase not available')) {
-                errorMessage = 'Authentication service offline. Using demo mode.';
-                
-                // Create offline demo session
-                localStorage.setItem('mindguard_session', JSON.stringify({
-                    user: {
-                        id: 'demo-user-' + Date.now(),
-                        email: email,
-                        created_at: new Date().toISOString()
-                    },
-                    expires_at: Date.now() + 24 * 60 * 60 * 1000 // 24 hours
-                }));
-                
-                setTimeout(() => {
-                    window.location.href = 'index.html';
-                }, 2000);
             }
             
-            showMessage(errorMessage, error.message.includes('offline') ? 'warning' : 'error');
+            showMessage(errorMessage, 'error');
         } finally {
             // Reset button
             submitBtn.textContent = originalText;
@@ -388,8 +407,12 @@ function setupRegisterForm(form) {
             
             showMessage('Demo account created! Redirecting to dashboard...', 'success');
             
+            // Clear loop counters
+            sessionStorage.clear();
+            
             // Redirect after delay
             setTimeout(() => {
+                console.log('🔄 Redirecting to dashboard (demo mode)');
                 window.location.href = 'index.html';
             }, 2000);
             
@@ -428,11 +451,15 @@ function setupRegisterForm(form) {
                     expires_at: Date.now() + 24 * 60 * 60 * 1000 // 24 hours temporary access
                 }));
                 
+                // Clear loop counters
+                sessionStorage.clear();
+                
                 // Clear form
                 form.reset();
                 
                 // Redirect to dashboard for immediate exploration
                 setTimeout(() => {
+                    console.log('🔄 Redirecting to dashboard');
                     window.location.href = 'index.html';
                 }, 3000);
             }
@@ -448,26 +475,9 @@ function setupRegisterForm(form) {
                 errorMessage = 'Password is too weak. Please use a stronger password.';
             } else if (error.message.includes('rate limit')) {
                 errorMessage = 'Too many attempts. Please try again later.';
-            } else if (error.message.includes('Supabase not available')) {
-                errorMessage = 'Service offline. Created demo account instead.';
-                
-                // Create offline demo
-                localStorage.setItem('mindguard_session', JSON.stringify({
-                    user: {
-                        id: 'demo-user-' + Date.now(),
-                        email: email,
-                        user_metadata: { full_name: fullName },
-                        created_at: new Date().toISOString()
-                    },
-                    expires_at: Date.now() + 24 * 60 * 60 * 1000
-                }));
-                
-                setTimeout(() => {
-                    window.location.href = 'index.html';
-                }, 2000);
             }
             
-            showMessage(errorMessage, error.message.includes('offline') ? 'warning' : 'error');
+            showMessage(errorMessage, 'error');
         } finally {
             // Reset button
             submitBtn.textContent = originalText;
@@ -481,17 +491,19 @@ function setupRegisterForm(form) {
  */
 async function signOut() {
     try {
-        // Try multiple possible client names
-        const supabase = window.mindguardSupabase || window.supabase || window.supabaseClient;
+        console.log('👋 Signing out...');
         
+        // Clear ALL storage
+        sessionStorage.clear();
+        localStorage.removeItem('mindguard_session');
+        localStorage.removeItem('user');
+        
+        // Try to sign out from Supabase
+        const supabase = window.mindguardSupabase || window.supabase || window.supabaseClient;
         if (supabase && supabase.auth) {
             const { error } = await supabase.auth.signOut();
             if (error) console.warn('Supabase sign out error:', error);
         }
-        
-        // Clear local storage
-        localStorage.removeItem('mindguard_session');
-        localStorage.removeItem('user');
         
         // Show message
         showToast({
@@ -500,8 +512,9 @@ async function signOut() {
             type: "success"
         });
         
-        // Redirect to login
+        // Redirect to login after delay
         setTimeout(() => {
+            console.log('🔄 Redirecting to login page');
             window.location.href = 'login.html';
         }, 1000);
         
@@ -514,6 +527,10 @@ async function signOut() {
         });
     }
 }
+
+// ==============================================
+// HELPER FUNCTIONS (Keep all existing helpers)
+// ==============================================
 
 /**
  * Find associated password input for toggle button
@@ -719,9 +736,41 @@ function showToast({ title, description, type = 'success' }) {
     }, 5000);
 }
 
+// ==============================================
+// GLOBAL FUNCTIONS & INITIALIZATION
+// ==============================================
+
 // Make functions available globally
 window.signOut = signOut;
 window.showToast = showToast;
-window.initializeAuth = initializeAuth; // Add this for manual initialization if needed
 
-console.log('auth.js loaded successfully');
+// Reset function to clear loop protection
+window.resetLoopProtection = function() {
+    console.log('🔄 Resetting loop protection...');
+    sessionStorage.clear();
+    localStorage.removeItem('mindguard_session');
+    console.log('✅ Storage cleared. Reloading page...');
+    setTimeout(() => location.reload(), 500);
+};
+
+// Debug function to check current state
+window.checkAuthStatus = async function() {
+    console.log('🔍 Checking auth status...');
+    const supabase = window.mindguardSupabase || window.supabase || window.supabaseClient;
+    
+    if (!supabase || !supabase.auth) {
+        console.log('❌ Supabase client not available');
+        return;
+    }
+    
+    const { data: { session }, error } = await supabase.auth.getSession();
+    console.log('Session:', session ? '✅ EXISTS' : '❌ NONE');
+    console.log('Error:', error);
+    console.log('Current page:', window.location.pathname);
+    console.log('Page load count:', sessionStorage.getItem('page_load_count'));
+    console.log('Loop protection:', sessionStorage.getItem('loop_protection_active'));
+    
+    return session;
+};
+
+console.log('✅ auth.js loaded successfully');
