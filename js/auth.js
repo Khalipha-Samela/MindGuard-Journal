@@ -71,45 +71,6 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(initializeAuth, 300);
 });
 
-async function handleSmartRedirect() {
-    console.log('🔄 Checking if smart redirect is needed...');
-    
-    // Skip if loop protection is active
-    if (sessionStorage.getItem('loop_protection_active') === 'true') {
-        console.log('🛑 Loop protection active - skipping redirect');
-        return;
-    }
-    
-    const currentPage = window.location.pathname;
-    const isAuthPage = currentPage.includes('login.html') || currentPage.includes('register.html');
-    
-    if (!isAuthPage) {
-        console.log('📄 Not on auth page - no redirect needed');
-        return;
-    }
-    
-    try {
-        const supabase = window.mindguardSupabase || window.supabase || window.supabaseClient;
-        if (!supabase || !supabase.auth) return;
-        
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session) {
-            console.log('✅ User is logged in on', currentPage, '- redirecting to dashboard');
-            
-            // Clear any loop counters
-            sessionStorage.removeItem('page_load_count');
-            
-            // Wait a moment then redirect
-            setTimeout(() => {
-                window.location.href = 'index.html';
-            }, 1500);
-        }
-    } catch (error) {
-        console.error('Redirect check error:', error);
-    }
-}
-
 /**
  * Initialize auth functionality
  */
@@ -133,15 +94,13 @@ function initializeAuth() {
     
     // Check auth state SAFELY (no redirects)
     checkAuthStateSafely();
-
-    handleSmartRedirect();
 }
 
 /**
  * SAFE version of checkAuthState - NO REDIRECTS
  */
 async function checkAuthStateSafely() {
-    console.log('🔐 Safe auth check (no redirects)...');
+    console.log('🔐 Safe auth check (smart redirects)...');
     
     try {
         // Get current page
@@ -180,11 +139,32 @@ async function checkAuthStateSafely() {
             // Log user info
             console.log('👋 User:', session.user.email);
             
-            // If on auth pages, suggest manual navigation (no auto-redirect)
-            if (currentPage.includes('login.html') || currentPage.includes('register.html')) {
-                console.log('💡 Info: User is logged in and on auth page');
-                console.log('💡 Suggestion: Consider navigating to dashboard manually');
+            // ==============================================
+            // 🔥 CRITICAL FIX: Redirect logged-in users from auth pages
+            // ==============================================
+            const isAuthPage = currentPage.includes('login.html') || currentPage.includes('register.html');
+            const isDashboardPage = currentPage.includes('index.html') || currentPage.includes('history.html');
+            
+            if (isAuthPage && session) {
+                console.log('✅ User logged in on auth page - redirecting to dashboard...');
+                
+                // Clear loop protection counters
+                sessionStorage.removeItem('page_load_count');
+                sessionStorage.removeItem('loop_protection_active');
+                
+                // Redirect after a short delay
+                setTimeout(() => {
+                    console.log('🔄 Redirecting to dashboard...');
+                    window.location.href = 'index.html';
+                }, 1000);
+                return;
             }
+            
+            if (isDashboardPage && !session) {
+                console.log('❌ No session on dashboard page');
+                // Don't redirect - let the user stay on the page
+            }
+            
         } else {
             console.log('👤 No active session');
             
@@ -194,7 +174,7 @@ async function checkAuthStateSafely() {
                 console.log('📦 Using stored session from localStorage');
             }
             
-            // If on protected pages, log info (no redirect)
+            // If on protected pages without session, suggest login
             if (currentPage.includes('index.html') || currentPage.includes('history.html')) {
                 console.log('💡 Info: No session on protected page');
                 console.log('💡 Suggestion: Consider logging in if needed');
@@ -203,7 +183,6 @@ async function checkAuthStateSafely() {
         
     } catch (error) {
         console.error('❌ Error in safe auth check:', error);
-        // NO REDIRECTS - just log the error
     }
 }
 
