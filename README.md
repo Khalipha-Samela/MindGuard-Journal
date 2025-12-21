@@ -131,6 +131,28 @@ Example:
 
 ----
 
+## 🚀 Live Demo
+
+- **Live View:** [https://mindguard-journal.netlify.app/login.html]
+
+---
+
+## 📸 Screenshots
+
+**Login**
+![Login Page](/assets/screenshots/login.png)
+
+**Register**
+![Register Page](/assets/screenshots/register.png)
+
+**Dashboard**
+![Dashboard Page](/assets/screenshots/dashboard.png)
+
+**History**
+![History Page](/assets/screenshots/history.png)
+
+---
+
 ## 🔒 Privacy & Security
 - User data is **scoped per account** using Supabase Auth & RLS
 - No shared or public data access
