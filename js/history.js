@@ -1,4 +1,6 @@
 // DOM elements
+const loadingState = document.getElementById('loading-state');
+const dashboardContent = document.getElementById('dashboard-content');
 const entriesContainer = document.getElementById('entries-container');
 const alertDialog = document.getElementById('alert-dialog');
 const cancelBtn = document.getElementById('cancel-btn');
@@ -117,98 +119,47 @@ function waitForSupabase() {
 }
 
 // Load entries from localStorage
+// Load entries from localStorage
 async function loadEntriesFromStorage() {
     try {
+        console.log('📂 Loading entries from storage...');
+        
         // Get Supabase client
         const supabase = window.mindguardSupabase || window.supabaseClient || window.supabase;
         
-        if (!supabase) {
-            console.error('Supabase client not available');
-            showToast({
-                title: "Error",
-                description: "Authentication service not available.",
-                type: "destructive"
-            });
-            return;
+        let user = null;
+        if (supabase && supabase.auth) {
+            try {
+                const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+                user = supabaseUser;
+                console.log('✅ User from Supabase:', user.email);
+            } catch (error) {
+                console.warn('⚠️ Could not get user from Supabase:', error);
+            }
         }
         
-        // Get current user
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        if (userError) throw userError;
-        
         if (!user) {
-            console.error('No user logged in');
-            showToast({
-                title: "Authentication Required",
-                description: "Please sign in to view your journal history.",
-                type: "destructive"
-            });
+            console.log('❌ No user found');
             journalEntries = [];
-            
-            // Redirect to login after a delay
-            setTimeout(() => {
-                window.location.href = 'login.html';
-            }, 2000);
+            showDashboard();
+            renderEntries();
             return;
         }
         
         const userId = user.id;
-        console.log('Loading entries for user:', userId, user.email);
+        console.log('📋 Loading entries for user:', userId, user.email);
         
-        // Try to load from Supabase first (user-specific)
-        if (window.journalService) {
-            console.log('Loading from Supabase via journalService...');
-            journalEntries = await window.journalService.getAllEntries();
-            
-            if (journalEntries && journalEntries.length > 0) {
-                console.log(`Loaded ${journalEntries.length} entries from Supabase for user ${user.email}`);
-                
-                // Save to localStorage as backup
-                const localStorageKey = `journalEntries_${userId}`;
-                localStorage.setItem(localStorageKey, JSON.stringify(journalEntries.slice(0, 50)));
-            } else {
-                // Fallback to localStorage with user prefix
-                console.log('No entries in Supabase, checking localStorage...');
-                const localStorageKey = `journalEntries_${userId}`;
-                const savedEntries = localStorage.getItem(localStorageKey);
-                
-                if (savedEntries) {
-                    journalEntries = JSON.parse(savedEntries);
-                    
-                    // Ensure proper structure
-                    journalEntries = journalEntries.map(entry => {
-                        // Check if entry belongs to current user
-                        if (entry.user_id && entry.user_id !== userId) {
-                            console.warn('Found entry for different user, skipping:', entry.user_id);
-                            return null;
-                        }
-                        
-                        return {
-                            ...entry,
-                            id: entry.id || Date.now().toString(),
-                            created_at: entry.date || entry.created_at || new Date().toISOString(),
-                            text: entry.text || entry.content || '',
-                            analysis: entry.analysis || generateAnalysisForEntry(entry.text || entry.content || ''),
-                            user_id: entry.user_id || userId
-                        };
-                    }).filter(entry => entry !== null);
-                    
-                    // Sort by date
-                    journalEntries.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-                    
-                    console.log(`Loaded ${journalEntries.length} entries from localStorage for user ${user.email}`);
-                }
-            }
-        } else {
-            console.log('journalService not available, using localStorage...');
-            // Fallback to localStorage only with user prefix
-            const localStorageKey = `journalEntries_${userId}`;
-            const savedEntries = localStorage.getItem(localStorageKey);
-            
-            if (savedEntries) {
+        // ALWAYS check localStorage first for immediate display
+        const localStorageKey = `journalEntries_${userId}`;
+        const savedEntries = localStorage.getItem(localStorageKey);
+        
+        if (savedEntries) {
+            console.log('💾 Found entries in localStorage, parsing...');
+            try {
                 journalEntries = JSON.parse(savedEntries);
+                console.log(`✅ Loaded ${journalEntries?.length || 0} entries from localStorage`);
                 
-                // Filter entries to ensure they belong to current user
+                // Ensure proper structure
                 journalEntries = journalEntries
                     .filter(entry => !entry.user_id || entry.user_id === userId)
                     .map(entry => ({
@@ -223,28 +174,47 @@ async function loadEntriesFromStorage() {
                 // Sort by date
                 journalEntries.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
                 
-                console.log(`Loaded ${journalEntries.length} entries from localStorage for user ${user.email}`);
+                console.log(`📊 Now have ${journalEntries.length} entries ready to display`);
+                
+            } catch (error) {
+                console.error('❌ Error parsing localStorage entries:', error);
+                journalEntries = [];
+            }
+        } else {
+            console.log('📭 No entries found in localStorage');
+            journalEntries = [];
+        }
+        
+        // THEN try to sync from Supabase in the background
+        if (window.journalService && journalEntries.length === 0) {
+            console.log('☁️ No local entries, checking Supabase...');
+            try {
+                const supabaseEntries = await window.journalService.getAllEntries();
+                if (supabaseEntries && supabaseEntries.length > 0) {
+                    console.log(`✅ Found ${supabaseEntries.length} entries in Supabase`);
+                    journalEntries = supabaseEntries;
+                    
+                    // Save to localStorage for next time
+                    localStorage.setItem(localStorageKey, JSON.stringify(journalEntries.slice(0, 50)));
+                }
+            } catch (error) {
+                console.error('❌ Error loading from Supabase:', error);
             }
         }
         
-        console.log('Final journal entries for current user:', journalEntries ? journalEntries.length : 0);
+        console.log(`🎯 Final: ${journalEntries.length} entries to display`);
         
     } catch (error) {
-        console.error('Error loading entries:', error);
+        console.error('🔥 Error loading entries:', error);
         journalEntries = [];
         showToast({
             title: "Error Loading Entries",
-            description: "Could not load your journal history. Please try again.",
+            description: "Could not load your journal history.",
             type: "destructive"
         });
     } finally {
-        // Always show dashboard content even if there was an error
-        if (loadingState) {
-            loadingState.style.display = 'none';
-        }
-        if (dashboardContent) {
-            dashboardContent.style.display = 'block';
-        }
+        // Always show dashboard
+        showDashboard();
         renderEntries();
     }
 }
