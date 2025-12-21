@@ -303,8 +303,6 @@ async function loadEntriesFromStorage() {
         if (dashboardContent) {
             dashboardContent.style.display = 'block';
         }
-
-        document.body.style.visibility = 'visible';
         renderEntries();
         
         // Debug: Check what's actually in the DOM
