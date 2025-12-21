@@ -19,6 +19,22 @@ window.addEventListener('DOMContentLoaded', async () => {
     // Check if DOM elements are found
     console.log('Loading state element:', loadingState);
     console.log('Dashboard content element:', dashboardContent);
+    console.log('Entries container element:', entriesContainer);
+    
+    // Check if required DOM elements exist
+    if (!entriesContainer) {
+        console.error('CRITICAL: entriesContainer not found');
+        document.body.innerHTML = `
+            <div style="padding: 2rem; text-align: center;">
+                <h2 style="color: #dc2626;">Page Loading Error</h2>
+                <p>Required page components failed to load. Please refresh.</p>
+                <button onclick="location.reload()" style="background: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">
+                    Refresh Page
+                </button>
+            </div>
+        `;
+        return;
+    }
     
     // Wait for Supabase to be ready
     await waitForSupabase();
@@ -164,6 +180,38 @@ async function loadEntriesFromStorage() {
             
             if (journalEntries && journalEntries.length > 0) {
                 console.log(`Loaded ${journalEntries.length} entries from Supabase for user ${user.email}`);
+                console.log('First entry structure from Supabase:', journalEntries[0]);
+                
+                // TRANSFORM database entries to match expected format
+                journalEntries = journalEntries.map(entry => {
+                    // Reconstruct analysis object from database JSONB fields
+                    const analysis = entry.analysis || {
+                        patterns: Array.isArray(entry.patterns) ? entry.patterns : [],
+                        triggers: Array.isArray(entry.triggers) ? entry.triggers : [],
+                        warnings: Array.isArray(entry.warnings) ? entry.warnings : [],
+                        grounding_techniques: Array.isArray(entry.grounding_techniques) ? entry.grounding_techniques : [],
+                        coping_strategies: Array.isArray(entry.coping_strategies) ? entry.coping_strategies : [],
+                        risk_level: entry.risk_level || 'low'
+                    };
+                    
+                    // Map database fields to your expected format
+                    const transformedEntry = {
+                        id: entry.id || Date.now().toString(),
+                        title: entry.title || 'Untitled Entry',
+                        text: entry.content || '',  // Use the actual 'content' field from DB
+                        content: entry.content || '',  // Same as text for compatibility
+                        created_at: entry.created_at || new Date().toISOString(),
+                        analysis: analysis,
+                        user_id: entry.user_id || userId,
+                        word_count: entry.word_count || 0,
+                        // Keep original fields for debugging
+                        _raw: entry
+                    };
+                    
+                    return transformedEntry;
+                });
+                
+                console.log('Transformed entries for rendering:', journalEntries);
                 
                 // Save to localStorage as backup
                 const localStorageKey = `journalEntries_${userId}`;
@@ -230,6 +278,14 @@ async function loadEntriesFromStorage() {
         }
         
         console.log('Final journal entries for current user:', journalEntries ? journalEntries.length : 0);
+        if (journalEntries.length > 0) {
+            console.log('First entry ready for rendering:', {
+                id: journalEntries[0].id,
+                title: journalEntries[0].title,
+                contentLength: journalEntries[0].content?.length || 0,
+                hasAnalysis: !!journalEntries[0].analysis
+            });
+        }
         
     } catch (error) {
         console.error('Error loading entries:', error);
@@ -248,10 +304,79 @@ async function loadEntriesFromStorage() {
             dashboardContent.style.display = 'block';
         }
         renderEntries();
+        
+        // Debug: Check what's actually in the DOM
+        setTimeout(() => {
+            console.log('DEBUG - entriesContainer innerHTML length:', entriesContainer.innerHTML.length);
+            console.log('DEBUG - journalEntries array length:', journalEntries.length);
+            
+            // Check if entry cards are being created
+            const entryCards = document.querySelectorAll('.entry-card');
+            console.log('DEBUG - Found entry cards in DOM:', entryCards.length);
+            
+            if (entryCards.length === 0 && journalEntries.length > 0) {
+                console.warn('Entries exist but not rendered. Forcing emergency render...');
+                forceEmergencyRender();
+            }
+        }, 500);
     }
 }
 
-// Enhanced AI Analysis with all 5 components (same as script.js)
+// Emergency render if normal render fails
+function forceEmergencyRender() {
+    if (!entriesContainer || journalEntries.length === 0) return;
+    
+    console.log('Forcing emergency render of', journalEntries.length, 'entries');
+    
+    entriesContainer.innerHTML = `
+        <div class="emergency-render" style="padding: 20px;">
+            <h2 style="margin-bottom: 20px; color: #333;">Your Journal Entries (${journalEntries.length})</h2>
+            <div class="emergency-entries-list">
+                ${journalEntries.map((entry, index) => `
+                    <div class="emergency-entry" style="border: 1px solid #e5e7eb; padding: 20px; margin: 15px 0; border-radius: 8px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+                            <h3 style="margin: 0; color: #1f2937;">${index + 1}. ${entry.title || 'Untitled Entry'}</h3>
+                            <span style="font-size: 12px; color: #6b7280;">${formatDate(entry.created_at)}</span>
+                        </div>
+                        <p style="color: #4b5563; margin-bottom: 15px; line-height: 1.5;">
+                            ${(entry.content || entry.text || '').substring(0, 200)}
+                            ${(entry.content || entry.text || '').length > 200 ? '...' : ''}
+                        </p>
+                        <div style="display: flex; gap: 10px;">
+                            <button onclick="toggleEntry('${entry.id}')" 
+                                    style="background: #3b82f6; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">
+                                Toggle Details
+                            </button>
+                            <button onclick="openDeleteDialog('${entry.id}', event)" 
+                                    style="background: #ef4444; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">
+                                Delete
+                            </button>
+                        </div>
+                        <div id="entry-details-${entry.id}" style="display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
+                            <h4 style="margin-bottom: 10px; color: #374151;">Full Content:</h4>
+                            <p style="white-space: pre-wrap; background: #f9fafb; padding: 15px; border-radius: 4px; font-family: monospace;">
+                                ${entry.content || entry.text || 'No content'}
+                            </p>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+    
+    // Add emergency toggle function
+    window.emergencyToggleEntry = function(entryId) {
+        const detailsDiv = document.getElementById(`entry-details-${entryId}`);
+        if (detailsDiv) {
+            detailsDiv.style.display = detailsDiv.style.display === 'none' ? 'block' : 'none';
+        }
+    };
+    
+    // Override toggleEntry for emergency mode
+    window.toggleEntry = window.emergencyToggleEntry;
+}
+
+// Enhanced AI Analysis with all 5 components
 function generateEnhancedAnalysis(content, allEntries = []) {
     const lowerContent = content.toLowerCase();
     
@@ -826,7 +951,7 @@ function generateAnalysisForEntry(content) {
     // Always use enhanced analysis
     try {
         // Get all previous entries for context
-        const allEntries = journalEntries.map(e => e.text).filter(Boolean);
+        const allEntries = journalEntries.map(e => e.content || e.text || '').filter(Boolean);
         
         // Generate the same enhanced analysis as the dashboard
         const enhancedAnalysis = generateEnhancedAnalysis(content, allEntries);
@@ -1082,9 +1207,15 @@ function renderEntries() {
 function renderEntry(entry) {
     const isExpanded = expandedEntryId === entry.id;
     const formattedDate = formatDate(entry.created_at);
-    const contentPreview = entry.text ? 
-        (entry.text.substring(0, 100) + (entry.text.length > 100 ? '...' : '')) : 
+    
+    // Use the correct field from database
+    const contentToShow = entry.content || entry.text || '';
+    const contentPreview = contentToShow ? 
+        (contentToShow.substring(0, 100) + (contentToShow.length > 100 ? '...' : '')) : 
         'No content';
+    
+    // Use title from database
+    const entryTitle = entry.title || 'Journal Entry';
     
     // Add user indicator if you want to show it (optional)
     const userIndicator = entry.user_id ? 
@@ -1102,7 +1233,9 @@ function renderEntry(entry) {
                             <span>${formattedDate}</span>
                             ${userIndicator}
                         </div>
-                        <div class="entry-title">${contentPreview}</div>
+                        <div class="entry-title">
+                            <strong>${entryTitle}</strong>: ${contentPreview}
+                        </div>
                     </div>
                     <div class="entry-actions">
                         <button class="btn btn-ghost btn-icon" onclick="openDeleteDialog('${entry.id}', event)">
@@ -1123,41 +1256,68 @@ function renderEntry(entry) {
 
 // Render entry content
 function renderEntryContent(entry) {
-    if (!entry.analysis) {
-        entry.analysis = generateAnalysisForEntry(entry.text || '');
+    // Get the actual content from database
+    const fullContent = entry.content || entry.text || '';
+    
+    // Build or get analysis object
+    let analysis = entry.analysis;
+    
+    // If analysis doesn't exist but we have database JSONB fields
+    if (!analysis && (entry.patterns || entry.triggers || entry.warnings || entry.risk_level)) {
+        // Reconstruct from database JSONB fields
+        analysis = {
+            patterns: Array.isArray(entry.patterns) ? entry.patterns : [],
+            triggers: Array.isArray(entry.triggers) ? entry.triggers : [],
+            warnings: Array.isArray(entry.warnings) ? entry.warnings : [],
+            grounding_techniques: Array.isArray(entry.grounding_techniques) ? entry.grounding_techniques : [],
+            coping_strategies: Array.isArray(entry.coping_strategies) ? entry.coping_strategies : [],
+            risk_level: entry.risk_level || 'low'
+        };
+        entry.analysis = analysis; // Save it back
     }
-
+    
+    // Generate analysis if still missing
+    if (!analysis) {
+        analysis = generateAnalysisForEntry(fullContent);
+        entry.analysis = analysis;
+    }
+    
     return `
         <div class="full-entry">
-            <h4><i class="fas fa-book"></i> Full Entry</h4>
-            <div class="entry-text">${entry.text || 'No content'}</div>
+            <h4><i class="fas fa-book"></i> ${entry.title || 'Full Entry'}</h4>
+            <div class="entry-text">${fullContent || 'No content'}</div>
+            ${entry.word_count ? `
+                <div class="word-count">
+                    <i class="fas fa-font"></i> ${entry.word_count} words
+                </div>
+            ` : ''}
         </div>
         
-        ${entry.analysis.risk_level ? `
+        ${analysis.risk_level ? `
             <div class="history-risk-summary">
                 <div class="flex items-center justify-between mb-2">
                     <h4 class="font-bold text-foreground">Risk Assessment</h4>
-                    <span class="history-risk-level" style="color: ${getRiskColor(entry.analysis.risk_level)}">
-                        ${entry.analysis.risk_level.toUpperCase()} RISK
+                    <span class="history-risk-level" style="color: ${getRiskColor(analysis.risk_level)}">
+                        ${analysis.risk_level.toUpperCase()} RISK
                     </span>
                 </div>
                 <div class="history-risk-meter">
-                    <div class="history-risk-fill" style="width: ${getRiskPercent(entry.analysis.risk_level)}%; background-color: ${getRiskColor(entry.analysis.risk_level)};"></div>
+                    <div class="history-risk-fill" style="width: ${getRiskPercent(analysis.risk_level)}%; background-color: ${getRiskColor(analysis.risk_level)};"></div>
                 </div>
                 <div class="history-risk-info">
                     <span class="text-sm text-muted-foreground">Based on analysis of this entry</span>
-                    <i class="fas fa-${getRiskIcon(entry.analysis.risk_level)}" style="color: ${getRiskColor(entry.analysis.risk_level)}"></i>
+                    <i class="fas fa-${getRiskIcon(analysis.risk_level)}" style="color: ${getRiskColor(analysis.risk_level)}"></i>
                 </div>
             </div>
         ` : ''}
         
         <div class="section-title"><i class="fas fa-chart-bar"></i> Analysis Insights</div>
         <div class="analysis-grid">
-            ${renderPatterns(entry.analysis.patterns)}
-            ${renderTriggers(entry.analysis.triggers)}
-            ${renderWarningsSection(entry.analysis.warnings)}
-            ${renderGroundingSection(entry.analysis.grounding_techniques)}
-            ${renderCopingSection(entry.analysis.coping_strategies)}
+            ${renderPatterns(analysis.patterns)}
+            ${renderTriggers(analysis.triggers)}
+            ${renderWarningsSection(analysis.warnings)}
+            ${renderGroundingSection(analysis.grounding_techniques)}
+            ${renderCopingSection(analysis.coping_strategies)}
         </div>
     `;
 }
