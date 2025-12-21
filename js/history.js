@@ -20,12 +20,29 @@ window.addEventListener('DOMContentLoaded', async () => {
     console.log('Loading state element:', loadingState);
     console.log('Dashboard content element:', dashboardContent);
     
+    // Wait for Supabase to be ready
+    await waitForSupabase();
+    
     // Check authentication
     try {
-        // Wait a moment to ensure supabase is loaded
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Get Supabase client
+        const supabase = window.mindguardSupabase || window.supabaseClient || window.supabase;
+        
+        if (!supabase) {
+            console.error('Supabase client not available');
+            window.location.href = 'login.html';
+            return;
+        }
+        
+        console.log('Supabase client available, checking session...');
         
         const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+            console.error('Error getting session:', error);
+            window.location.href = 'login.html';
+            return;
+        }
         
         if (!session) {
             console.log('No session found, redirecting to login');
@@ -37,14 +54,14 @@ window.addEventListener('DOMContentLoaded', async () => {
         
         // Proceed with loading history
         if (loadingState) {
-            loadingState.style.display = 'flex'; // Use style.display, not classList
+            loadingState.style.display = 'flex';
         }
         
         if (dashboardContent) {
             dashboardContent.style.display = 'none';
         }
         
-        // Load entries from localStorage
+        // Load entries from storage
         await loadEntriesFromStorage();
         
         // Set up event listeners
@@ -56,10 +73,67 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
+// Wait for Supabase to be ready
+function waitForSupabase() {
+    return new Promise((resolve) => {
+        // Check if already available
+        const supabase = window.mindguardSupabase || window.supabaseClient || window.supabase;
+        if (supabase && supabase.auth) {
+            console.log('Supabase already available');
+            resolve(supabase);
+            return;
+        }
+        
+        console.log('Waiting for Supabase...');
+        
+        // Listen for ready event
+        const readyHandler = (event) => {
+            console.log('mindguardSupabaseReady event received');
+            window.removeEventListener('mindguardSupabaseReady', readyHandler);
+            clearTimeout(timeoutId);
+            resolve(event.detail.supabase || window.mindguardSupabase || window.supabaseClient || window.supabase);
+        };
+        
+        window.addEventListener('mindguardSupabaseReady', readyHandler);
+        
+        // Also check periodically
+        const intervalId = setInterval(() => {
+            const supabaseCheck = window.mindguardSupabase || window.supabaseClient || window.supabase;
+            if (supabaseCheck && supabaseCheck.auth) {
+                console.log('Supabase found during periodic check');
+                clearInterval(intervalId);
+                window.removeEventListener('mindguardSupabaseReady', readyHandler);
+                clearTimeout(timeoutId);
+                resolve(supabaseCheck);
+            }
+        }, 100);
+        
+        // Timeout after 5 seconds
+        const timeoutId = setTimeout(() => {
+            clearInterval(intervalId);
+            window.removeEventListener('mindguardSupabaseReady', readyHandler);
+            console.warn('Supabase not loaded after timeout');
+            resolve(null);
+        }, 5000);
+    });
+}
 
 // Load entries from localStorage
 async function loadEntriesFromStorage() {
     try {
+        // Get Supabase client
+        const supabase = window.mindguardSupabase || window.supabaseClient || window.supabase;
+        
+        if (!supabase) {
+            console.error('Supabase client not available');
+            showToast({
+                title: "Error",
+                description: "Authentication service not available.",
+                type: "destructive"
+            });
+            return;
+        }
+        
         // Get current user
         const { data: { user }, error: userError } = await supabase.auth.getUser();
         if (userError) throw userError;
@@ -870,19 +944,26 @@ function generateFallbackAnalysis(content) {
 
 // Set up event listeners
 function setupEventListeners() {
-    cancelBtn.addEventListener('click', closeDeleteDialog);
-    confirmDeleteBtn.addEventListener('click', handleDeleteConfirm);
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', closeDeleteDialog);
+    }
+    
+    if (confirmDeleteBtn) {
+        confirmDeleteBtn.addEventListener('click', handleDeleteConfirm);
+    }
     
     // Close dialog when clicking outside
-    alertDialog.addEventListener('click', (e) => {
-        if (e.target === alertDialog) {
-            closeDeleteDialog();
-        }
-    });
+    if (alertDialog) {
+        alertDialog.addEventListener('click', (e) => {
+            if (e.target === alertDialog) {
+                closeDeleteDialog();
+            }
+        });
+    }
     
     // Close dialog with Escape key
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !alertDialog.classList.contains('hidden')) {
+        if (e.key === 'Escape' && alertDialog && !alertDialog.classList.contains('hidden')) {
             closeDeleteDialog();
         }
     });
@@ -890,14 +971,22 @@ function setupEventListeners() {
 
 // Format date
 function formatDate(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
+    try {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) {
+            return 'Invalid date';
+        }
+        return date.toLocaleDateString('en-US', { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    } catch (error) {
+        console.error('Error formatting date:', error);
+        return 'Unknown date';
+    }
 }
 
 // Get intensity color class
@@ -951,6 +1040,11 @@ function getRiskIcon(riskLevel) {
 
 // Render all entries
 function renderEntries() {
+    if (!entriesContainer) {
+        console.error('entriesContainer not found');
+        return;
+    }
+    
     if (journalEntries.length === 0) {
         entriesContainer.innerHTML = `
             <div class="empty-state">
@@ -1289,13 +1383,17 @@ function openDeleteDialog(entryId, event) {
         event.preventDefault();
     }
     entryToDelete = entryId;
-    alertDialog.classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
+    if (alertDialog) {
+        alertDialog.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
 }
 
 // Close delete dialog
 function closeDeleteDialog() {
-    alertDialog.classList.add('hidden');
+    if (alertDialog) {
+        alertDialog.classList.add('hidden');
+    }
     document.body.style.overflow = 'auto';
     entryToDelete = null;
 }
@@ -1311,6 +1409,18 @@ async function handleDeleteConfirm() {
     }
     
     try {
+        // Get Supabase client
+        const supabase = window.mindguardSupabase || window.supabaseClient || window.supabase;
+        
+        if (!supabase) {
+            showToast({
+                title: "Error",
+                description: "Authentication service not available.",
+                type: "destructive"
+            });
+            return;
+        }
+        
         // Get current user for localStorage key
         const { data: { user } } = await supabase.auth.getUser();
         const userId = user?.id;
@@ -1428,6 +1538,9 @@ async function signOut() {
     console.log('Sign out function called');
     
     try {
+        // Get Supabase client
+        const supabase = window.mindguardSupabase || window.supabaseClient || window.supabase;
+        
         // Show loading state immediately
         showToast({
             title: "Signing out...",
@@ -1436,7 +1549,7 @@ async function signOut() {
         });
         
         // Try to sign out from Supabase if available
-        if (typeof supabase !== 'undefined' && supabase.auth) {
+        if (supabase && supabase.auth) {
             console.log('Attempting Supabase sign out');
             const { error } = await supabase.auth.signOut();
             if (error) {
@@ -1449,8 +1562,15 @@ async function signOut() {
             console.log('Supabase not available, performing local sign out');
         }
         
-        // Clear any local session data (optional)
-        // localStorage.removeItem('userSession'); // Uncomment if you store session data
+        // Clear any local session data
+        localStorage.removeItem('user');
+        localStorage.removeItem('mindguard_session');
+        
+        // Clear user-specific journal entries
+        const userId = localStorage.getItem('user_id');
+        if (userId) {
+            localStorage.removeItem(`journalEntries_${userId}`);
+        }
         
         // Show success message
         showToast({
