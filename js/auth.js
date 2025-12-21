@@ -1,5 +1,25 @@
 // DOM Ready
 document.addEventListener('DOMContentLoaded', function() {
+    // Wait for Supabase to be ready
+    if (!window.supabaseClient && !window.supabase) {
+        // Listen for the ready event
+        window.addEventListener('mindguardSupabaseReady', function() {
+            console.log('Supabase ready, initializing auth...');
+            initializeAuth();
+        });
+        
+        // Also check if it's already loaded after a short delay
+        setTimeout(function() {
+            if (window.supabaseClient || window.supabase) {
+                initializeAuth();
+            }
+        }, 500);
+    } else {
+        initializeAuth();
+    }
+});
+
+function initializeAuth() {
     // Initialize password toggles
     initializePasswordToggles();
     
@@ -8,7 +28,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Check auth state
     checkAuthState();
-});
+}
 
 /**
  * Check authentication state

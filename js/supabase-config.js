@@ -1,11 +1,10 @@
-// supabase-config.js - Fixed version
 console.log('Loading MindGuard Supabase config...');
 
 // ==============================================
-// IMPORTANT: REPLACE THESE WITH YOUR ACTUAL VALUES!
+// IMPORTANT: Supabase credentials for MindGuard Journal
 // ==============================================
-const MINDGUARD_SUPABASE_URL = 'https://udashmvrlcpdrjdqczig.supabase.co';  // ← YOUR ACTUAL PROJECT URL
-const MINDGUARD_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVkYXNobXZybGNwZHJqZHFjemlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU3MjAwMDAsImV4cCI6MjA4MTI5NjAwMH0.es2FIxEE5WKKYTI0jbQwmbCrl4V9tiI0kh9BcYwTwqw';                // ← YOUR ACTUAL ANON KEY
+const MINDGUARD_SUPABASE_URL = 'https://udashmvrlcpdrjdqczig.supabase.co';
+const MINDGUARD_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVkYXNobXZybGNwZHJqZHFjemlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU3MjAwMDAsImV4cCI6MjA4MTI5NjAwMH0.es2FIxEE5WKKYTI0jbQwmbCrl4V9tiI0kh9BcYwTwqw';         
 // ==============================================
 
 console.log('Supabase URL:', MINDGUARD_SUPABASE_URL);
