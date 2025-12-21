@@ -38,7 +38,18 @@ function initializeMindGuardSupabase() {
             console.log('Found window.supabase, assuming it is the client');
             // If window.supabase is already a client, use it directly
             window.mindguardSupabase = window.supabase;
+            
+            // ALWAYS set these for compatibility (overwrite with our client)
+            window.supabase = window.supabase; // Already set, but keep for consistency
+            window.supabaseClient = window.supabase;
+            
             console.log('Using existing Supabase client');
+            console.log('Global Supabase variables set:', {
+                mindguardSupabase: !!window.mindguardSupabase,
+                supabase: !!window.supabase,
+                supabaseClient: !!window.supabaseClient
+            });
+            
             dispatchReadyEvent(window.supabase);
             return;
         }
@@ -76,19 +87,21 @@ function initializeMindGuardSupabase() {
         // Store with unique global name to avoid conflicts
         window.mindguardSupabase = mindguardClient;
         
-        // Also set the standard names for compatibility
-        if (!window.supabase) {
-            window.supabase = mindguardClient;
-        }
-        if (!window.supabaseClient) {
-            window.supabaseClient = mindguardClient;
-        }
+        // ALWAYS set these for compatibility (overwrite with our client)
+        window.supabase = mindguardClient;
+        window.supabaseClient = mindguardClient;
         
-        // Test the connection
-        testConnection(mindguardClient);
+        console.log('Global Supabase variables set:', {
+            mindguardSupabase: !!window.mindguardSupabase,
+            supabase: !!window.supabase,
+            supabaseClient: !!window.supabaseClient
+        });
         
-        // Mark as ready
+        // Mark as ready immediately
         dispatchReadyEvent(mindguardClient);
+        
+        // Test connection (don't wait for it)
+        testConnection(mindguardClient).catch(console.error);
         
     } catch (error) {
         console.error('ERROR in initializeMindGuardSupabase:', error);
@@ -125,7 +138,10 @@ function dispatchReadyEvent(client) {
     // Dispatch event to notify other scripts
     try {
         const event = new CustomEvent('mindguardSupabaseReady', { 
-            detail: { supabase: client } 
+            detail: { 
+                supabase: client,
+                source: 'mindguard-config'
+            } 
         });
         window.dispatchEvent(event);
         console.log('Dispatched mindguardSupabaseReady event');
@@ -243,15 +259,16 @@ function createFallbackClient() {
     // Store with unique name
     window.mindguardSupabase = fallbackClient;
     
-    // Also set standard names if not already set
-    if (!window.supabase) {
-        window.supabase = fallbackClient;
-    }
-    if (!window.supabaseClient) {
-        window.supabaseClient = fallbackClient;
-    }
+    // ALWAYS set these for compatibility
+    window.supabase = fallbackClient;
+    window.supabaseClient = fallbackClient;
     
     console.log('Fallback client created - running in offline/demo mode');
+    console.log('Global Supabase variables set:', {
+        mindguardSupabase: !!window.mindguardSupabase,
+        supabase: !!window.supabase,
+        supabaseClient: !!window.supabaseClient
+    });
     
     // Dispatch ready event for fallback too
     dispatchReadyEvent(fallbackClient);
@@ -264,22 +281,19 @@ window.checkMindGuardSupabase = function() {
         isAvailable: !!(client && client.auth),
         isFallback: !!(client && client._isFallback),
         url: MINDGUARD_SUPABASE_URL,
-        hasKey: !!MINDGUARD_SUPABASE_KEY
+        hasKey: !!MINDGUARD_SUPABASE_KEY,
+        allVariables: {
+            mindguardSupabase: !!window.mindguardSupabase,
+            supabase: !!window.supabase,
+            supabaseClient: !!window.supabaseClient
+        }
     };
 };
 
-// Initialize when the script loads
+// Initialize immediately when the script loads
 console.log('Starting Supabase initialization...');
 
-// Wait a bit for other scripts to load, then initialize
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log('DOM loaded, initializing Supabase...');
-        setTimeout(initializeMindGuardSupabase, 100);
-    });
-} else {
-    console.log('DOM already loaded, initializing Supabase...');
-    setTimeout(initializeMindGuardSupabase, 100);
-}
+// Initialize immediately (don't wait for DOM or setTimeout)
+initializeMindGuardSupabase();
 
-console.log('Supabase config script loaded (initialization pending)');
+console.log('Supabase config script loaded');

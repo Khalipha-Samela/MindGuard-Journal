@@ -1,25 +1,51 @@
 // DOM Ready
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, waiting for Supabase...');
+    
     // Wait for Supabase to be ready
-    if (!window.supabaseClient && !window.supabase) {
-        // Listen for the ready event
-        window.addEventListener('mindguardSupabaseReady', function() {
-            console.log('Supabase ready, initializing auth...');
+    waitForSupabaseAndInitialize();
+});
+
+function waitForSupabaseAndInitialize() {
+    // Check if Supabase is already available
+    const supabase = window.mindguardSupabase || window.supabaseClient || window.supabase;
+    
+    if (supabase && supabase.auth) {
+        console.log('Supabase already available, initializing auth...');
+        initializeAuth();
+    } else {
+        console.log('Supabase not ready yet, waiting...');
+        
+        // Listen for the ready event from supabase-config.js
+        window.addEventListener('mindguardSupabaseReady', function(event) {
+            console.log('mindguardSupabaseReady event received', event.detail);
             initializeAuth();
         });
         
-        // Also check if it's already loaded after a short delay
-        setTimeout(function() {
-            if (window.supabaseClient || window.supabase) {
+        // Also check periodically (fallback)
+        const checkInterval = setInterval(() => {
+            const supabaseCheck = window.mindguardSupabase || window.supabaseClient || window.supabase;
+            if (supabaseCheck && supabaseCheck.auth) {
+                console.log('Supabase found during periodic check');
+                clearInterval(checkInterval);
                 initializeAuth();
             }
-        }, 500);
-    } else {
-        initializeAuth();
+        }, 100);
+        
+        // Timeout after 5 seconds
+        setTimeout(() => {
+            clearInterval(checkInterval);
+            console.warn('Supabase not loaded after timeout');
+            // Still try to initialize forms (they'll show error if needed)
+            initializeFormHandlers();
+            initializePasswordToggles();
+        }, 5000);
     }
-});
+}
 
 function initializeAuth() {
+    console.log('Initializing auth components...');
+    
     // Initialize password toggles
     initializePasswordToggles();
     
@@ -35,27 +61,50 @@ function initializeAuth() {
  */
 async function checkAuthState() {
     try {
-        const supabase = window.supabaseClient;
+        console.log('Checking auth state...');
+        
+        // Check all possible Supabase client locations
+        const supabase = window.mindguardSupabase || window.supabaseClient || window.supabase;
+        
         if (!supabase) {
-            console.warn('Supabase client not initialized');
+            console.warn('Supabase client not initialized - checking multiple sources:', {
+                mindguardSupabase: !!window.mindguardSupabase,
+                supabaseClient: !!window.supabaseClient,
+                supabase: !!window.supabase
+            });
             return;
         }
         
-        const { data: { session } } = await supabase.auth.getSession();
+        console.log('Supabase client found, checking session...');
+        
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+            console.error('Error getting session:', error);
+            return;
+        }
+        
+        console.log('Session check result:', { hasSession: !!session, email: session?.user?.email });
         
         const currentPage = window.location.pathname;
+        console.log('Current page:', currentPage);
         
         // If user is logged in and on auth pages, redirect to dashboard
         if (session && (currentPage.includes('login.html') || currentPage.includes('register.html'))) {
+            console.log('User is logged in, redirecting to index.html...');
             window.location.href = 'index.html';
             return;
         }
         
         // If user is not logged in and on protected pages, redirect to login
         if (!session && (currentPage.includes('index.html') || currentPage.includes('history.html'))) {
+            console.log('User is not logged in, redirecting to login.html...');
             window.location.href = 'login.html';
             return;
         }
+        
+        console.log('Auth state check complete - no redirect needed');
+        
     } catch (error) {
         console.error('Error checking auth state:', error);
     }
