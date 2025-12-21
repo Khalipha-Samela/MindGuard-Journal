@@ -85,5 +85,44 @@
     <script src="js/supabase-config.js"></script>
     <script defer src="js/history.js"></script>
     <script defer src="js/journal-service.js"></script>
+
+    <!-- Debug Script -->
+<script>
+// Debug function to check what's happening
+function debugHistory() {
+    console.log('=== HISTORY PAGE DEBUG ===');
+    console.log('1. DOM Elements:');
+    console.log('- loadingState:', document.getElementById('loading-state'));
+    console.log('- dashboardContent:', document.getElementById('dashboard-content'));
+    console.log('- entriesContainer:', document.getElementById('entries-container'));
+    
+    console.log('2. Supabase Status:');
+    console.log('- mindguardSupabase:', window.mindguardSupabase);
+    console.log('- supabaseClient:', window.supabaseClient);
+    console.log('- supabase:', window.supabase);
+    
+    console.log('3. Journal Service:');
+    console.log('- journalService:', window.journalService);
+    
+    console.log('4. Check Supabase manually:');
+    const supabase = window.mindguardSupabase || window.supabaseClient || window.supabase;
+    if (supabase && supabase.auth) {
+        supabase.auth.getSession().then(({ data, error }) => {
+            console.log('Session check:', { data, error });
+        }).catch(err => {
+            console.error('Session check error:', err);
+        });
+    }
+    
+    console.log('5. Loading state visibility:');
+    const loadingEl = document.getElementById('loading-state');
+    if (loadingEl) {
+        console.log('- display style:', loadingEl.style.display);
+        console.log('- computed display:', getComputedStyle(loadingEl).display);
+    }
+}
+// Run debug after a short delay
+setTimeout(debugHistory, 2000);
+</script>
 </body>
 </html>
