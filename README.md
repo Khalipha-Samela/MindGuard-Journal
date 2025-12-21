@@ -146,6 +146,7 @@ Example:
 ![Register Page](/assets/screenshots/register.png)
 
 **Dashboard**
+<br>
 ![Dashboard Page](/assets/screenshots/dashboard.png)
 
 **History**
