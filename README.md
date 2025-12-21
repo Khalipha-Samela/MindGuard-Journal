@@ -71,22 +71,34 @@ Suggestions adapt to emotional patterns, anxiety indicators, and stress factors.
 ---
 
 ## 📂 Project Structure
+
 ```
-MindGuard-Journal/
-├── index.html                  # Main dashboard
-├── history.html                # Journal history page
-├── login.html                  # Login page
-├── register.html               # Registration page
-├── css/
-│   ├── style.css               # Main styles
-│   └── auth.css                # Authentication styles
-├── js/
-│   ├── script.js               # Main application logic
-│   ├── history.js              # History page logic
-│   ├── auth.js                 # Authentication logic
-│   ├── supabase-config.js      # Supabase configuration
-│   └── journal-service.js      # Database service layer
-└── README.md        
+MindGuard-Journal
+├─ android-chrome-192x192.png
+├─ android-chrome-512x512.png
+├─ apple-touch-icon.png
+├─ assets
+│  ├─ css
+│  │  ├─ auth.css
+│  │  └─ style.css
+│  ├─ js
+│  │  ├─ auth.js
+│  │  ├─ history.js
+│  │  ├─ journal-service.js
+│  │  ├─ script.js
+│  │  └─ supabase-config.js
+│  └─ screenshots
+│     ├─ dashboard.png
+│     ├─ history.png
+│     ├─ login.png
+│     └─ register.png
+├─ favicon-16x16.png
+├─ favicon-32x32.png
+├─ history.html
+├─ index.html
+├─ login.html
+├─ README.md
+└─ register.html
 
 ```
 
