@@ -1,3 +1,31 @@
+// Quick check if page loaded
+console.log('history.js loaded at:', new Date().toLocaleTimeString());
+
+// Show loading state immediately
+if (document.getElementById('loading-state')) {
+    document.getElementById('loading-state').style.display = 'flex';
+}
+if (document.getElementById('dashboard-content')) {
+    document.getElementById('dashboard-content').style.display = 'none';
+}
+
+// Force render after timeout as fallback
+setTimeout(() => {
+    console.log('Fallback render timeout');
+    const container = document.getElementById('entries-container');
+    if (container && container.innerHTML.trim() === '') {
+        console.log('Container empty, showing fallback');
+        container.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-exclamation-triangle"></i>
+                <h2>Loading...</h2>
+                <p>Your journal history is being loaded.</p>
+            </div>
+        `;
+    }
+}, 2000);
+
+
 // DOM elements
 const loadingState = document.getElementById('loading-state');
 const dashboardContent = document.getElementById('dashboard-content');
