@@ -14,7 +14,7 @@ class JournalService {
      */
     async checkTableExists() {
         try {
-            console.log('🔍 Checking if journal_entries table exists...');
+            console.log('Checking if journal_entries table exists...');
             
             const { data: { user } } = await this.supabase.auth.getUser();
             if (!user) {
@@ -28,8 +28,8 @@ class JournalService {
                 .select('count', { count: 'exact', head: true });
             
             if (error) {
-                console.error('❌ Table check error:', error);
-                console.log('ℹ️ Error suggests table might not exist or RLS policies not set');
+                console.error('Table check error:', error);
+                console.log('Error suggests table might not exist or RLS policies not set');
                 console.log('Error details:', {
                     message: error.message,
                     code: error.code,
@@ -38,11 +38,11 @@ class JournalService {
                 return false;
             }
             
-            console.log('✅ journal_entries table exists and is accessible');
+            console.log('journal_entries table exists and is accessible');
             return true;
             
         } catch (error) {
-            console.error('🔥 Exception in checkTableExists:', error);
+            console.error('Exception in checkTableExists:', error);
             return false;
         }
     }
@@ -52,12 +52,12 @@ class JournalService {
      */
     async saveJournalEntry(entryData) {
         try {
-            console.log('💾 Starting to save journal entry...');
+            console.log('to save journal entry...');
             
             // Get current user
             const { data: { user } } = await this.supabase.auth.getUser();
             if (!user) {
-                console.error('❌ No user logged in');
+                console.error('No user logged in');
                 return null;
             }
         
@@ -73,8 +73,8 @@ class JournalService {
                 coping_strategies: entryData.analysis?.coping_strategies || []
             };
         
-            console.log('👤 Saving entry for user:', user.email);
-            console.log('📝 Entry data:', {
+            console.log('Saving entry for user:', user.email);
+            console.log('Entry data:', {
                 contentLength: entryToSave.content.length,
                 wordCount: entryToSave.word_count,
                 riskLevel: entryToSave.risk_level
@@ -85,7 +85,7 @@ class JournalService {
             let supabaseError = null;
             
             try {
-                console.log('☁️ Attempting to save to Supabase...');
+                console.log('Attempting to save to Supabase...');
                 const { data, error } = await this.supabase
                     .from('journal_entries')
                     .insert([entryToSave])
@@ -94,7 +94,7 @@ class JournalService {
                 
                 if (error) {
                     supabaseError = error;
-                    console.error('❌ Supabase save error:', error);
+                    console.error('Supabase save error:', error);
                     console.error('Error details:', {
                         message: error.message,
                         code: error.code,
@@ -118,26 +118,26 @@ class JournalService {
                         }
                     };
                     
-                    console.log('✅ Entry saved to Supabase:', supabaseSavedEntry.id);
+                    console.log('Entry saved to Supabase:', supabaseSavedEntry.id);
                 }
                 
             } catch (supabaseException) {
-                console.error('🔥 Supabase exception:', supabaseException);
+                console.error('Supabase exception:', supabaseException);
                 supabaseError = supabaseException;
             }
             
             // ALWAYS save to localStorage (as backup or primary)
-            console.log('💾 Saving to localStorage...');
+            console.log('Saving to localStorage...');
             const localStorageEntry = this.saveToLocalStorage(entryData, user, supabaseSavedEntry?.id);
             
             if (!localStorageEntry) {
-                console.error('❌ Failed to save to localStorage too!');
+                console.error('Failed to save to localStorage too!');
                 return null;
             }
             
             // Return whichever one succeeded (prefer Supabase if available)
             const result = supabaseSavedEntry || localStorageEntry;
-            console.log('🎯 Save result:', {
+            console.log('Save result:', {
                 savedToSupabase: !!supabaseSavedEntry,
                 savedToLocalStorage: !!localStorageEntry,
                 entryId: result.id
@@ -146,17 +146,17 @@ class JournalService {
             return result;
             
         } catch (error) {
-            console.error('🔥 Error saving entry:', error);
+            console.error('Error saving entry:', error);
             
             // Last resort: try to save to localStorage only
             try {
                 const { data: { user } } = await this.supabase.auth.getUser();
                 if (user) {
-                    console.log('🆘 Emergency save to localStorage');
+                    console.log('Emergency save to localStorage');
                     return this.saveToLocalStorage(entryData, user, null);
                 }
             } catch (e) {
-                console.error('❌ Even emergency localStorage save failed:', e);
+                console.error('Even emergency localStorage save failed:', e);
             }
             
             return null;
@@ -169,7 +169,7 @@ class JournalService {
     saveToLocalStorage(entryData, user, supabaseId) {
         try {
             if (!user || !user.id) {
-                console.error('❌ No user for localStorage save');
+                console.error('No user for localStorage save');
                 return null;
             }
             
@@ -203,12 +203,12 @@ class JournalService {
             
             localStorage.setItem(localStorageKey, JSON.stringify(filteredEntries.slice(0, 100)));
             
-            console.log('✅ Saved to localStorage:', newEntry.id);
+            console.log('Saved to localStorage:', newEntry.id);
             
             return newEntry;
             
         } catch (error) {
-            console.error('❌ Error saving to localStorage:', error);
+            console.error('Error saving to localStorage:', error);
             return null;
         }
     }
@@ -218,23 +218,23 @@ class JournalService {
      */
     async getAllEntries() {
         try {
-            console.log('📋 Getting all journal entries...');
+            console.log('Getting all journal entries...');
             
             // Get current user
             const { data: { user } } = await this.supabase.auth.getUser();
             if (!user) {
-                console.log('👤 No user logged in');
+                console.log('No user logged in');
                 return [];
             }
         
-            console.log('👤 Fetching entries for user:', user.email);
+            console.log('Fetching entries for user:', user.email);
             
             let supabaseEntries = [];
             let supabaseError = null;
             
             // Try to get entries from Supabase
             try {
-                console.log('☁️ Fetching from Supabase...');
+                console.log('Fetching from Supabase...');
                 const { data, error } = await this.supabase
                     .from('journal_entries')
                     .select('*')
@@ -243,9 +243,9 @@ class JournalService {
                 
                 if (error) {
                     supabaseError = error;
-                    console.error('❌ Supabase query error:', error);
+                    console.error('Supabase query error:', error);
                 } else {
-                    console.log(`✅ Found ${data?.length || 0} entries in Supabase`);
+                    console.log(`Found ${data?.length || 0} entries in Supabase`);
                     
                     // Transform data to match expected structure
                     supabaseEntries = (data || []).map(entry => ({
@@ -270,7 +270,7 @@ class JournalService {
                 }
                 
             } catch (supabaseException) {
-                console.error('🔥 Supabase fetch exception:', supabaseException);
+                console.error('Supabase fetch exception:', supabaseException);
                 supabaseError = supabaseException;
             }
             
@@ -282,7 +282,7 @@ class JournalService {
             if (savedEntries) {
                 try {
                     localStorageEntries = JSON.parse(savedEntries);
-                    console.log(`💾 Found ${localStorageEntries?.length || 0} entries in localStorage`);
+                    console.log(`Found ${localStorageEntries?.length || 0} entries in localStorage`);
                     
                     // Filter and transform localStorage entries
                     localStorageEntries = localStorageEntries
@@ -305,7 +305,7 @@ class JournalService {
                         }));
                         
                 } catch (parseError) {
-                    console.error('❌ Error parsing localStorage entries:', parseError);
+                    console.error('Error parsing localStorage entries:', parseError);
                     localStorageEntries = [];
                 }
             }
@@ -328,12 +328,12 @@ class JournalService {
                 return dateB - dateA;
             });
             
-            console.log(`📊 Total entries: ${allEntries.length} (${supabaseEntries.length} from Supabase, ${localStorageEntries.length} from localStorage)`);
+            console.log(`Total entries: ${allEntries.length} (${supabaseEntries.length} from Supabase, ${localStorageEntries.length} from localStorage)`);
             
             return allEntries;
             
         } catch (error) {
-            console.error('🔥 Error fetching entries:', error);
+            console.error('Error fetching entries:', error);
             // Return empty array instead of throwing to prevent refresh loops
             return [];
         }
@@ -345,11 +345,11 @@ class JournalService {
     async getEntryById(entryId) {
         try {
             if (!this.supabase) {
-                console.error('❌ Supabase client not initialized');
+                console.error('Supabase client not initialized');
                 return null;
             }
 
-            console.log(`🔍 Getting entry by ID: ${entryId}`);
+            console.log(`Getting entry by ID: ${entryId}`);
             
             // Try Supabase first
             let supabaseEntry = null;
@@ -361,7 +361,7 @@ class JournalService {
                     .single();
 
                 if (error) {
-                    console.error('❌ Supabase fetch error:', error);
+                    console.error('Supabase fetch error:', error);
                 } else if (data) {
                     supabaseEntry = {
                         id: data.id,
@@ -380,12 +380,12 @@ class JournalService {
                     };
                 }
             } catch (supabaseError) {
-                console.error('🔥 Supabase fetch exception:', supabaseError);
+                console.error('Supabase fetch exception:', supabaseError);
             }
             
             // If not in Supabase, check localStorage
             if (!supabaseEntry) {
-                console.log('💾 Checking localStorage for entry...');
+                console.log('Checking localStorage for entry...');
                 const { data: { user } } = await this.supabase.auth.getUser();
                 if (user) {
                     const localStorageKey = `journalEntries_${user.id}`;
@@ -401,10 +401,10 @@ class JournalService {
                                     ...localEntry,
                                     source: 'local'
                                 };
-                                console.log('✅ Found in localStorage');
+                                console.log('Found in localStorage');
                             }
                         } catch (parseError) {
-                            console.error('❌ Error parsing localStorage:', parseError);
+                            console.error('Error parsing localStorage:', parseError);
                         }
                     }
                 }
@@ -413,7 +413,7 @@ class JournalService {
             return supabaseEntry;
 
         } catch (error) {
-            console.error('🔥 Exception in getEntryById:', error);
+            console.error('Exception in getEntryById:', error);
             return null;
         }
     }
@@ -424,16 +424,16 @@ class JournalService {
     async updateEntry(entryId, updates) {
         try {
             if (!this.supabase) {
-                console.error('❌ Supabase client not initialized');
+                console.error('Supabase client not initialized');
                 return null;
             }
 
-            console.log(`✏️ Updating entry: ${entryId}`);
+            console.log(`Updating entry: ${entryId}`);
             
             // Get current user
             const { data: { user } } = await this.supabase.auth.getUser();
             if (!user) {
-                console.error('❌ No user logged in');
+                console.error('No user logged in');
                 return null;
             }
             
@@ -450,13 +450,13 @@ class JournalService {
                     .single();
 
                 if (error) {
-                    console.error('❌ Supabase update error:', error);
+                    console.error('Supabase update error:', error);
                 } else if (data) {
                     supabaseUpdated = data;
-                    console.log('✅ Updated in Supabase');
+                    console.log('Updated in Supabase');
                 }
             } catch (supabaseError) {
-                console.error('🔥 Supabase update exception:', supabaseError);
+                console.error('Supabase update exception:', supabaseError);
             }
             
             // Always update in localStorage
@@ -476,7 +476,7 @@ class JournalService {
                         };
                         
                         localStorage.setItem(localStorageKey, JSON.stringify(entries));
-                        console.log('✅ Updated in localStorage');
+                        console.log('Updated in localStorage');
                         
                         // If Supabase update failed, return the localStorage version
                         if (!supabaseUpdated) {
@@ -484,14 +484,14 @@ class JournalService {
                         }
                     }
                 } catch (parseError) {
-                    console.error('❌ Error updating localStorage:', parseError);
+                    console.error('Error updating localStorage:', parseError);
                 }
             }
             
             return supabaseUpdated;
 
         } catch (error) {
-            console.error('🔥 Exception in updateEntry:', error);
+            console.error('Exception in updateEntry:', error);
             return null;
         }
     }
@@ -501,12 +501,12 @@ class JournalService {
      */
     async deleteEntry(entryId) {
         try {
-            console.log(`🗑️ Deleting entry: ${entryId}`);
+            console.log(`Deleting entry: ${entryId}`);
             
             // Get current user
             const { data: { user } } = await this.supabase.auth.getUser();
             if (!user) {
-                console.log('👤 No user logged in');
+                console.log('No user logged in');
                 return false;
             }
         
@@ -521,14 +521,14 @@ class JournalService {
                     .eq('user_id', user.id);
                 
                 if (error) {
-                    console.error('❌ Supabase delete error:', error);
+                    console.error('Supabase delete error:', error);
                 } else {
                     supabaseDeleteSuccess = true;
-                    console.log('✅ Deleted from Supabase');
+                    console.log('Deleted from Supabase');
                 }
                 
             } catch (supabaseError) {
-                console.error('🔥 Supabase delete exception:', supabaseError);
+                console.error('Supabase delete exception:', supabaseError);
             }
         
             // Always delete from user-specific localStorage
@@ -540,10 +540,10 @@ class JournalService {
                 
                 if (filteredEntries.length !== entries.length) {
                     localStorage.setItem(localStorageKey, JSON.stringify(filteredEntries));
-                    console.log('✅ Deleted from localStorage');
+                    console.log('Deleted from localStorage');
                 }
             } catch (parseError) {
-                console.error('❌ Error deleting from localStorage:', parseError);
+                console.error('Error deleting from localStorage:', parseError);
             }
         
             console.log('🎯 Delete result:', {
@@ -565,11 +565,11 @@ class JournalService {
     async getStatistics() {
         try {
             if (!this.supabase) {
-                console.error('❌ Supabase client not initialized');
+                console.error('Supabase client not initialized');
                 return null;
             }
 
-            console.log('📊 Getting statistics...');
+            console.log('Getting statistics...');
             
             // Get entries first
             const entries = await this.getAllEntries();
@@ -609,7 +609,7 @@ class JournalService {
             };
 
         } catch (error) {
-            console.error('🔥 Exception in getStatistics:', error);
+            console.error('Exception in getStatistics:', error);
             return null;
         }
     }
@@ -646,17 +646,17 @@ class JournalService {
      */
     async syncWithLocalStorage() {
         try {
-            console.log('🔄 Syncing localStorage with Supabase...');
+            console.log('Syncing localStorage with Supabase...');
             
             if (!this.supabase) {
-                console.error('❌ Supabase client not initialized');
+                console.error('Supabase client not initialized');
                 return { synced: 0, total: 0 };
             }
 
             // Get current user
             const { data: { user } } = await this.supabase.auth.getUser();
             if (!user) {
-                console.error('❌ No user logged in');
+                console.error('No user logged in');
                 return { synced: 0, total: 0 };
             }
             
@@ -664,14 +664,14 @@ class JournalService {
             const localStorageKey = `journalEntries_${user.id}`;
             const savedEntries = localStorage.getItem(localStorageKey);
             if (!savedEntries) {
-                console.log('📭 No entries in localStorage to sync');
+                console.log('No entries in localStorage to sync');
                 return { synced: 0, total: 0 };
             }
 
             const localEntries = JSON.parse(savedEntries);
             let syncedCount = 0;
 
-            console.log(`📋 Found ${localEntries.length} entries to sync`);
+            console.log(`Found ${localEntries.length} entries to sync`);
             
             // Sync each entry
             for (const entry of localEntries) {
@@ -681,15 +681,15 @@ class JournalService {
                         const success = await this.saveJournalEntry(entry);
                         if (success) {
                             syncedCount++;
-                            console.log(`✅ Synced entry ${syncedCount}/${localEntries.length}`);
+                            console.log(`Synced entry ${syncedCount}/${localEntries.length}`);
                         }
                     }
                 } catch (entryError) {
-                    console.error(`❌ Error syncing entry:`, entryError);
+                    console.error(`Error syncing entry:`, entryError);
                 }
             }
 
-            console.log(`🎯 Sync complete: ${syncedCount}/${localEntries.length} entries synced`);
+            console.log(`Sync complete: ${syncedCount}/${localEntries.length} entries synced`);
 
             return {
                 synced: syncedCount,
@@ -697,7 +697,7 @@ class JournalService {
             };
 
         } catch (error) {
-            console.error('🔥 Error syncing with localStorage:', error);
+            console.error('Error syncing with localStorage:', error);
             return { synced: 0, total: 0 };
         }
     }
@@ -711,26 +711,26 @@ window.testJournalService = async function() {
     console.log('🧪 === Testing JournalService ===');
     
     // Check if service is initialized
-    console.log('✅ Service instance:', !!window.journalService);
-    console.log('✅ Service supabase client:', !!window.journalService?.supabase);
-    console.log('✅ Global mindguardSupabase:', !!window.mindguardSupabase);
+    console.log('Service instance:', !!window.journalService);
+    console.log('Service supabase client:', !!window.journalService?.supabase);
+    console.log('Global mindguardSupabase:', !!window.mindguardSupabase);
     
     // Test table exists
-    console.log('🔍 Testing if table exists...');
+    console.log('Testing if table exists...');
     try {
         const tableExists = await window.journalService.checkTableExists();
-        console.log('✅ Table exists check:', tableExists);
+        console.log('Table exists check:', tableExists);
     } catch (tableError) {
-        console.error('❌ Table check failed:', tableError);
+        console.error('Table check failed:', tableError);
     }
     
     // Test getAllEntries
-    console.log('📋 Testing getAllEntries...');
+    console.log('Testing getAllEntries...');
     try {
         const entries = await window.journalService.getAllEntries();
-        console.log(`✅ Success! Got ${entries.length} entries`);
+        console.log(`Success! Got ${entries.length} entries`);
         if (entries.length > 0) {
-            console.log('📄 First entry sample:', {
+            console.log('First entry sample:', {
                 id: entries[0].id,
                 content_preview: entries[0].content?.substring(0, 50) + '...',
                 created_at: entries[0].created_at,
@@ -739,27 +739,27 @@ window.testJournalService = async function() {
         }
         return entries;
     } catch (error) {
-        console.error('❌ Test failed:', error);
+        console.error('Test failed:', error);
         return null;
     }
 };
 
 // Test statistics
 window.testStatistics = async function() {
-    console.log('📊 Testing statistics...');
+    console.log('Testing statistics...');
     try {
         const stats = await window.journalService.getStatistics();
-        console.log('✅ Statistics:', stats);
+        console.log('Statistics:', stats);
         return stats;
     } catch (error) {
-        console.error('❌ Statistics test failed:', error);
+        console.error('Statistics test failed:', error);
         return null;
     }
 };
 
 // Auto-test when page loads
 setTimeout(() => {
-    console.log('🚀 JournalService auto-test starting...');
+    console.log('JournalService auto-test starting...');
     if (window.journalService && window.journalService.supabase) {
         window.testJournalService().then(entries => {
             if (entries && entries.length > 0) {
@@ -771,7 +771,7 @@ setTimeout(() => {
 
 // Check table exists and warn if needed
 setTimeout(async () => {
-    console.log('⚠️ Checking database setup...');
+    console.log('Checking database setup...');
     if (window.journalService && window.journalService.supabase) {
         try {
             const tableExists = await window.journalService.checkTableExists();
@@ -819,10 +819,10 @@ CREATE INDEX idx_journal_entries_user_id ON journal_entries(user_id);
 CREATE INDEX idx_journal_entries_created_at ON journal_entries(created_at DESC);
                 `);
             } else {
-                console.log('✅ Database setup looks good!');
+                console.log('Database setup looks good!');
             }
         } catch (error) {
-            console.error('❌ Database check failed:', error);
+            console.error('Database check failed:', error);
         }
     }
 }, 5000);
