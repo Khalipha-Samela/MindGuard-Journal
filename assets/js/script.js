@@ -1,3 +1,21 @@
+// ==============================================
+// IMMEDIATE HIDE CONTENT - PREVENTS FLASH OF DASHBOARD
+// ==============================================
+(function() {
+    // Hide everything immediately when script loads
+    document.addEventListener('DOMContentLoaded', function() {
+        // Hide all content until auth is verified
+        const loadingState = document.getElementById('loading-state');
+        const dashboardContent = document.getElementById('dashboard-content');
+        
+        if (loadingState) loadingState.style.display = 'flex';
+        if (dashboardContent) dashboardContent.style.display = 'none';
+        
+        // Hide body to prevent any flash
+        document.body.style.visibility = 'hidden';
+    });
+})();
+
 // DOM elements
 const loadingState = document.getElementById('loading-state');
 const dashboardContent = document.getElementById('dashboard-content');

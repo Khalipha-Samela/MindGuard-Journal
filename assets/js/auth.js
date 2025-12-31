@@ -1,3 +1,35 @@
+// ==============================================
+// IMMEDIATE AUTH CHECK - RUNS AS SOON AS SCRIPT LOADS
+// ==============================================
+(function immediateAuthCheck() {
+    console.log('Running immediate auth check...');
+    
+    // Get current page
+    const currentPage = window.location.pathname;
+    console.log('Current page:', currentPage);
+    
+    // Check for Supabase token in localStorage (Supabase stores it like this)
+    // Supabase v2 stores tokens in localStorage with key: sb-{project-ref}-auth-token
+    const supabaseToken = localStorage.getItem('sb-udashmvrlcpdrjdqczig-auth-token');
+    const hasToken = !!supabaseToken;
+    
+    console.log('Has Supabase token:', hasToken);
+    
+    // RULE 1: If on protected pages (index.html, history.html) AND no token → redirect to login
+    if ((currentPage.includes('index.html') || currentPage.includes('history.html')) && !hasToken) {
+        console.log('No token on protected page, redirecting to login...');
+        window.location.replace('login.html');
+        return; // Stop execution
+    }
+    
+    // RULE 2: If on auth pages (login.html, register.html) AND has token → redirect to index
+    if ((currentPage.includes('login.html') || currentPage.includes('register.html')) && hasToken) {
+        console.log('Already logged in, redirecting to dashboard...');
+        window.location.replace('index.html');
+        return; // Stop execution
+    }
+})();
+
 // DOM Ready
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded, waiting for Supabase...');
