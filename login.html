@@ -12,30 +12,6 @@
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
     <link rel="stylesheet" href="assets/css/auth.css">
-
-    <script>
-    // Fast auth redirect - runs before page renders
-    (function() {
-        // Use localStorage for immediate check (Supabase will verify later)
-        const userSession = localStorage.getItem('sb-' + 'udashmvrlcpdrjdqczig' + '-auth-token');
-        const currentPage = window.location.pathname;
-        
-        // Redirect rules
-        if (currentPage.includes('index.html') || currentPage.includes('history.html')) {
-            if (!userSession) {
-                window.location.href = 'login.html';
-                return;
-            }
-        }
-        
-        if (currentPage.includes('login.html') || currentPage.includes('register.html')) {
-            if (userSession) {
-                window.location.href = 'index.html';
-                return;
-            }
-        }
-    })();
-    </script>
 </head>
 <body>
     <div class="container">
