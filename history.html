@@ -4,33 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MindGuard Journal | History</title>
-
-    <script>
-        (function() {
-            // Check if we have a Supabase session token in localStorage
-            // Supabase stores it with this pattern: sb-{project-ref}-auth-token
-            const supabaseToken = localStorage.getItem('sb-udashmvrlcpdrjdqczig-auth-token');
-            const currentPage = window.location.pathname;
-            
-            // If we're on a protected page and no token exists, redirect immediately
-            if ((currentPage.includes('index.html') || currentPage.includes('history.html'))) {
-                if (!supabaseToken) {
-                    // Redirect BEFORE the page renders
-                    window.location.replace('login.html');
-                    // Stop execution to prevent any further rendering
-                    throw new Error('Redirecting to login');
-                }
-            }
-            
-            // If we're on login/register and have a token, redirect to dashboard
-            if ((currentPage.includes('login.html') || currentPage.includes('register.html'))) {
-                if (supabaseToken) {
-                    window.location.replace('index.html');
-                    throw new Error('Redirecting to dashboard');
-                }
-            }
-        })();
-    </script>
     
     <!--icon-->
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
