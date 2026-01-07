@@ -1,3 +1,18 @@
+(function checkInitialAuth() {
+    const supabase = window.mindguardSupabase || window.supabaseClient || window.supabase;
+    if (supabase && supabase.auth) {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (!session) {
+                // Redirect to login if not authenticated
+                const currentPath = window.location.pathname;
+                if (currentPath.includes('index.html') || currentPath === '/') {
+                    window.location.href = 'login.html';
+                }
+            }
+        });
+    }
+})();
+
 // DOM elements
 const loadingState = document.getElementById('loading-state');
 const dashboardContent = document.getElementById('dashboard-content');
