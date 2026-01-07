@@ -1,70 +1,172 @@
-// DOM elements
-const loadingState = document.getElementById('loading-state');
-const dashboardContent = document.getElementById('dashboard-content');
-const analysisLoading = document.getElementById('analysis-loading');
-const analysisEmpty = document.getElementById('analysis-empty');
-const analysisContent = document.getElementById('analysis-content');
-const journalText = document.getElementById('journal-text');
-const wordCount = document.getElementById('word-count');
-const analyzeBtn = document.getElementById('analyze-btn');
-const clearBtn = document.getElementById('clear-btn');
+// DOM elements with null checks
+let loadingState, dashboardContent, analysisLoading, analysisEmpty, analysisContent;
+let journalText, wordCount, analyzeBtn, clearBtn;
+
+// Initialize DOM elements after DOM is loaded
+function initializeDOMElements() {
+    loadingState = document.getElementById('loading-state');
+    dashboardContent = document.getElementById('dashboard-content');
+    analysisLoading = document.getElementById('analysis-loading');
+    analysisEmpty = document.getElementById('analysis-empty');
+    analysisContent = document.getElementById('analysis-content');
+    journalText = document.getElementById('journal-text');
+    wordCount = document.getElementById('word-count');
+    analyzeBtn = document.getElementById('analyze-btn');
+    clearBtn = document.getElementById('clear-btn');
+}
+
+// Global Supabase client reference
+let supabaseClient = null;
+
+// Get Supabase client
+function getSupabaseClient() {
+    if (supabaseClient) return supabaseClient;
+    
+    // Try to get from various possible sources
+    if (window.supabase) {
+        supabaseClient = window.supabase;
+    } else if (typeof window.getSupabaseClient === 'function') {
+        supabaseClient = window.getSupabaseClient();
+    } else if (window.supabaseClient && typeof window.supabaseClient.auth === 'object') {
+        supabaseClient = window.supabaseClient;
+    }
+    
+    return supabaseClient;
+}
 
 // Simulate initial loading state
 window.addEventListener('DOMContentLoaded', async () => {
-    console.log('DOM loaded, waiting for Supabase...');
+    console.log('DOM loaded, initializing...');
+    
+    // Initialize DOM elements
+    initializeDOMElements();
     
     // Wait for supabase to be available
-    if (!window.supabase && !window.supabaseClient) {
-        console.log('Supabase not available yet, waiting...');
-        setTimeout(() => {
-            window.location.reload();
-        }, 1000);
-        return;
-    }
+    const maxAttempts = 10;
+    let attempts = 0;
     
-    const supabase = window.supabase || window.supabaseClient;
-    
-    try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-
-        if (!session) {
-            console.log('No session, redirecting to login');
-            window.location.replace('login.html');
+    const waitForSupabase = async () => {
+        const supabase = getSupabaseClient();
+        
+        if (!supabase && attempts < maxAttempts) {
+            attempts++;
+            console.log(`Supabase not available yet (attempt ${attempts}/${maxAttempts}), waiting...`);
+            setTimeout(waitForSupabase, 500);
             return;
         }
+        
+        if (!supabase) {
+            console.error('Supabase not available after waiting');
+            showToast({
+                title: "Connection Error",
+                description: "Unable to connect to service. Please refresh.",
+                type: "destructive"
+            });
+            return;
+        }
+        
+        try {
+            console.log('Supabase available, checking session...');
+            const { data: { session }, error } = await supabase.auth.getSession();
 
-        // User authenticated → show loader
-        loadingState.style.display = 'flex';
-        dashboardContent.style.display = 'none';
+            if (error) {
+                console.error('Session error:', error);
+                throw error;
+            }
 
-        // Simulate loading / init app
-        setTimeout(() => {
-            loadingState.style.display = 'none';
-            dashboardContent.style.display = 'block';
+            if (!session) {
+                console.log('No session, redirecting to login');
+                window.location.replace('login.html');
+                return;
+            }
 
-            // Show page AFTER auth + init
-            document.body.style.visibility = 'visible';
+            console.log('User authenticated:', session.user.email);
+            
+            // User authenticated → show loader
+            if (loadingState) loadingState.style.display = 'flex';
+            if (dashboardContent) dashboardContent.style.display = 'none';
 
-            updateWordCount();
-        }, 800);
+            // Simulate loading / init app
+            setTimeout(() => {
+                if (loadingState) loadingState.style.display = 'none';
+                if (dashboardContent) dashboardContent.style.display = 'block';
 
-    } catch (err) {
-        console.error('Auth check error:', err);
-        window.location.replace('login.html');
-    }
+                // Show page AFTER auth + init
+                document.body.style.visibility = 'visible';
+
+                // Initialize event listeners
+                initializeEventListeners();
+                
+                updateWordCount();
+            }, 800);
+
+        } catch (err) {
+            console.error('Auth check error:', err);
+            showToast({
+                title: "Authentication Error",
+                description: "Please log in again.",
+                type: "destructive"
+            });
+            setTimeout(() => {
+                window.location.replace('login.html');
+            }, 2000);
+        }
+    };
+    
+    waitForSupabase();
 });
+
+// Initialize event listeners
+function initializeEventListeners() {
+    if (journalText) {
+        journalText.addEventListener('input', updateWordCount);
+    }
+    
+    if (analyzeBtn) {
+        analyzeBtn.addEventListener('click', analyzeJournal);
+    }
+    
+    if (clearBtn) {
+        clearBtn.addEventListener('click', clearJournalEntry);
+    }
+    
+    // Add global event listeners
+    document.addEventListener('click', function(e) {
+        // Handle toast close buttons
+        if (e.target.closest('.toast-close')) {
+            const toast = e.target.closest('.toast');
+            if (toast) {
+                toast.remove();
+            }
+        }
+        
+        // Handle analyze another button if it exists
+        if (e.target.closest('#analyze-another-btn')) {
+            analyzeAnother();
+        }
+        
+        // Handle save to history button if it exists
+        if (e.target.closest('#save-history-btn')) {
+            saveToHistory();
+        }
+    });
+}
 
 // Word count functionality
 function updateWordCount() {
+    if (!journalText || !wordCount) return;
+    
     const text = journalText.value.trim();
-    const words = text ? text.split(/\s+/).length : 0;
+    const words = text ? text.split(/\s+/).filter(word => word.length > 0).length : 0;
     wordCount.textContent = words;
-            
+    
     // Disable analyze button if no text
-    analyzeBtn.disabled = words === 0;
+    if (analyzeBtn) {
+        analyzeBtn.disabled = words === 0;
+        analyzeBtn.classList.toggle('opacity-50', words === 0);
+        analyzeBtn.classList.toggle('cursor-not-allowed', words === 0);
+    }
 }
-
-journalText.addEventListener('input', updateWordCount);
 
 // Enhanced AI Analysis with all 5 components
 function generateEnhancedAnalysis(content, allEntries = []) {
@@ -96,9 +198,19 @@ function generateEnhancedAnalysis(content, allEntries = []) {
 }
 
 // 1. Detect Recurring Patterns
-function detectRecurringPatterns(content, allEntries) {
+function detectRecurringPatterns(content, allEntries = []) {
     const patterns = [];
     const lowerContent = content.toLowerCase();
+    
+    // Helper to get text from entry
+    const getEntryText = (entry) => {
+        if (typeof entry === 'string') return entry.toLowerCase();
+        if (entry && typeof entry === 'object') {
+            if (entry.text) return entry.text.toLowerCase();
+            if (entry.content) return entry.content.toLowerCase();
+        }
+        return '';
+    };
     
     // Work-related stress pattern
     const workKeywords = ['work', 'job', 'boss', 'colleague', 'office', 'project', 'deadline', 'meeting'];
@@ -110,7 +222,7 @@ function detectRecurringPatterns(content, allEntries) {
             frequency: frequency,
             description: "Recurring mentions of work-related topics across entries",
             confidence: workCount > 2 ? "High" : "Medium",
-            trend: calculateTrend(allEntries, workKeywords)
+            trend: calculateTrend(allEntries, workKeywords, getEntryText)
         });
     }
     
@@ -123,7 +235,7 @@ function detectRecurringPatterns(content, allEntries) {
             frequency: "Regular Pattern",
             description: "Consistent mentions of social situations and interpersonal dynamics",
             confidence: socialCount > 1 ? "Medium" : "Low",
-            trend: calculateTrend(allEntries, socialKeywords)
+            trend: calculateTrend(allEntries, socialKeywords, getEntryText)
         });
     }
     
@@ -136,7 +248,7 @@ function detectRecurringPatterns(content, allEntries) {
             frequency: "Daily Pattern",
             description: "Regular mentions of sleep issues and fatigue",
             confidence: sleepCount > 1 ? "High" : "Medium",
-            trend: calculateTrend(allEntries, sleepKeywords)
+            trend: calculateTrend(allEntries, sleepKeywords, getEntryText)
         });
     }
     
@@ -149,7 +261,7 @@ function detectRecurringPatterns(content, allEntries) {
             frequency: "Episodic Pattern",
             description: "Pattern of emotional fluctuations and distress",
             confidence: emotionalCount > 2 ? "High" : "Medium",
-            trend: calculateTrend(allEntries, emotionalKeywords)
+            trend: calculateTrend(allEntries, emotionalKeywords, getEntryText)
         });
     }
     
@@ -550,15 +662,17 @@ function calculateRiskLevel(content, triggers, warnings) {
     const criticalWords = ['suicide', 'self-harm', 'end it', 'cant take it', 'kill myself'];
     const urgentWords = ['emergency', 'help now', 'cant breathe', 'panic attack', 'losing control'];
     
-    if (criticalWords.some(word => content.toLowerCase().includes(word))) {
+    const lowerContent = content.toLowerCase();
+    
+    if (criticalWords.some(word => lowerContent.includes(word))) {
         riskScore += 15; // Critical risk
-    } else if (urgentWords.some(word => content.toLowerCase().includes(word))) {
+    } else if (urgentWords.some(word => lowerContent.includes(word))) {
         riskScore += 10; // Urgent risk
     }
     
     // Emotional intensity scoring
     const strongEmotionWords = ['overwhelm', 'drowning', 'suffocating', 'breaking', 'falling apart'];
-    riskScore += strongEmotionWords.filter(word => content.toLowerCase().includes(word)).length * 2;
+    riskScore += strongEmotionWords.filter(word => lowerContent.includes(word)).length * 2;
     
     if (riskScore >= 12) return 'critical';
     if (riskScore >= 8) return 'high';
@@ -578,13 +692,8 @@ function getContextAroundWord(content, word, charCount) {
     
     let context = content.substring(start, end);
     
-    // Highlight the trigger word
-    const wordStart = index - start;
-    const wordEnd = wordStart + word.length;
-    
-    return context.substring(0, wordStart) + 
-           `<span class="highlight-word">${context.substring(wordStart, wordEnd)}</span>` + 
-           context.substring(wordEnd);
+    // Return plain text context (HTML version handled in display function)
+    return context;
 }
 
 function getTriggerApproach(intensity) {
@@ -609,7 +718,7 @@ function getCategoryIcon(category) {
     return icons[category] || "fas fa-exclamation-circle";
 }
 
-function calculateTrend(allEntries, keywords) {
+function calculateTrend(allEntries, keywords, getEntryText) {
     if (allEntries.length < 3) return "New Pattern";
     
     let recentCount = 0;
@@ -618,7 +727,8 @@ function calculateTrend(allEntries, keywords) {
     // Check recent entries (last 3)
     const recentEntries = allEntries.slice(0, Math.min(3, allEntries.length));
     recentEntries.forEach(entry => {
-        if (keywords.some(keyword => entry.toLowerCase().includes(keyword))) {
+        const text = getEntryText(entry);
+        if (keywords.some(keyword => text.includes(keyword))) {
             recentCount++;
         }
     });
@@ -626,7 +736,8 @@ function calculateTrend(allEntries, keywords) {
     // Check older entries (previous 3)
     const olderEntries = allEntries.slice(3, Math.min(6, allEntries.length));
     olderEntries.forEach(entry => {
-        if (keywords.some(keyword => entry.toLowerCase().includes(keyword))) {
+        const text = getEntryText(entry);
+        if (keywords.some(keyword => text.includes(keyword))) {
             olderCount++;
         }
     });
@@ -639,10 +750,21 @@ function calculateTrend(allEntries, keywords) {
 // Save journal entry with enhanced analysis
 async function saveJournalEntry(text, analysis) {
     try {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+            console.error('Supabase client not available');
+            showToast({
+                title: "Connection Error",
+                description: "Unable to connect to service. Please try again.",
+                type: "destructive"
+            });
+            return null;
+        }
+        
         // Get current user
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-            console.error('No user logged in');
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) {
+            console.error('No user logged in:', userError);
             showToast({
                 title: "Not Signed In",
                 description: "Please sign in to save your journal entry.",
@@ -652,69 +774,66 @@ async function saveJournalEntry(text, analysis) {
         }
         
         const userId = user.id;
-        const wordCount = text.split(/\s+/).length;
+        const wordCount = text.split(/\s+/).filter(word => word.length > 0).length;
         
         const entryData = {
             content: text,
             word_count: wordCount,
-            analysis: analysis
+            analysis: analysis,
+            user_id: userId
         };
 
         console.log('Saving entry for user:', user.email);
         
-        // Save to Supabase
-        if (window.journalService) {
-            const savedEntry = await window.journalService.saveJournalEntry(entryData);
-            
-            if (savedEntry) {
-                console.log('Saved to Supabase:', savedEntry);
-                
-                // Also save to user-specific localStorage
-                const localStorageKey = `journalEntries_${userId}`;
-                const savedEntries = localStorage.getItem(localStorageKey) || '[]';
-                const entries = JSON.parse(savedEntries);
-                
-                const localEntry = {
-                    id: savedEntry.id,
-                    text: savedEntry.text,
-                    content: savedEntry.content,
-                    created_at: savedEntry.created_at,
-                    date: savedEntry.created_at,
-                    word_count: savedEntry.word_count,
-                    analysis: savedEntry.analysis,
+        // Try to save to Supabase via journalService or direct API call
+        let savedEntry = null;
+        
+        if (window.journalService && typeof window.journalService.saveJournalEntry === 'function') {
+            savedEntry = await window.journalService.saveJournalEntry(entryData);
+        } else {
+            // Direct Supabase insert as fallback
+            const { data, error } = await supabase
+                .from('journal_entries')
+                .insert([{
+                    content: text,
+                    word_count: wordCount,
+                    analysis: analysis,
                     user_id: userId
-                };
+                }])
+                .select()
+                .single();
                 
-                entries.unshift(localEntry);
-                localStorage.setItem(localStorageKey, JSON.stringify(entries.slice(0, 50)));
-                console.log('Saved to localStorage for user:', user.email);
-                
-                return savedEntry;
-            }
+            if (error) throw error;
+            savedEntry = data;
+        }
+        
+        if (savedEntry) {
+            console.log('Saved to Supabase:', savedEntry);
+            
+            // Also save to user-specific localStorage for offline access
+            const localStorageKey = `journalEntries_${userId}`;
+            const savedEntries = localStorage.getItem(localStorageKey) || '[]';
+            const entries = JSON.parse(savedEntries);
+            
+            const localEntry = {
+                id: savedEntry.id || Date.now().toString(),
+                text: text,
+                content: text,
+                created_at: savedEntry.created_at || new Date().toISOString(),
+                date: savedEntry.created_at || new Date().toISOString(),
+                word_count: wordCount,
+                analysis: analysis,
+                user_id: userId
+            };
+            
+            entries.unshift(localEntry);
+            localStorage.setItem(localStorageKey, JSON.stringify(entries.slice(0, 50)));
+            console.log('Saved to localStorage for user:', user.email);
+            
+            return savedEntry;
         }
 
-        // Fallback to user-specific localStorage
-        console.log('Using localStorage fallback for user:', user.email);
-        const localStorageKey = `journalEntries_${userId}`;
-        const savedEntries = localStorage.getItem(localStorageKey) || '[]';
-        const entries = JSON.parse(savedEntries);
-        
-        const newEntry = {
-            id: Date.now().toString(),
-            text: text,
-            content: text,
-            created_at: new Date().toISOString(),
-            date: new Date().toISOString(),
-            word_count: wordCount,
-            analysis: analysis,
-            user_id: userId
-        };
-        
-        entries.unshift(newEntry);
-        localStorage.setItem(localStorageKey, JSON.stringify(entries.slice(0, 50)));
-        console.log('Saved to localStorage (fallback) for user:', user.email);
-        
-        return newEntry;
+        return null;
 
     } catch (error) {
         console.error('Error saving journal entry:', error);
@@ -729,8 +848,27 @@ async function saveJournalEntry(text, analysis) {
 
 // Analyze journal entry
 async function analyzeJournal() {
+    if (!journalText) return;
+    
     const text = journalText.value.trim();
-    if (!text) return;
+    if (!text) {
+        showToast({
+            title: "Empty Entry",
+            description: "Please write something before analyzing.",
+            type: "warning"
+        });
+        return;
+    }
+    
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+        showToast({
+            title: "Connection Error",
+            description: "Unable to connect to service. Please refresh.",
+            type: "destructive"
+        });
+        return;
+    }
     
     // Get current user
     const { data: { user } } = await supabase.auth.getUser();
@@ -745,16 +883,34 @@ async function analyzeJournal() {
     
     // Get user-specific previous entries for pattern detection
     let previousEntries = [];
-    if (window.journalService) {
+    const userId = user.id;
+    
+    if (window.journalService && typeof window.journalService.getAllEntries === 'function') {
         previousEntries = await window.journalService.getAllEntries();
     } else {
         // Fallback to localStorage with user prefix
-        const localStorageKey = `journalEntries_${user.id}`;
+        const localStorageKey = `journalEntries_${userId}`;
         const savedEntries = localStorage.getItem(localStorageKey) || '[]';
         previousEntries = JSON.parse(savedEntries);
+        
+        // Also try to get from Supabase directly
+        try {
+            const { data, error } = await supabase
+                .from('journal_entries')
+                .select('*')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false })
+                .limit(20);
+                
+            if (!error && data) {
+                previousEntries = [...data, ...previousEntries];
+            }
+        } catch (e) {
+            console.warn('Could not fetch from Supabase:', e);
+        }
     }
     
-    const previousTexts = previousEntries.map(e => e.text).filter(Boolean);
+    const previousTexts = previousEntries.map(e => e.text || e.content || '').filter(Boolean);
     
     // Generate analysis
     const analysis = generateEnhancedAnalysis(text, previousTexts);
@@ -772,48 +928,69 @@ async function analyzeJournal() {
     }
 
     // Show loading state for analysis
-    analysisLoading.style.display = 'block';
-    analysisEmpty.style.display = 'none';
-    analysisContent.style.display = 'none';
+    if (analysisLoading) analysisLoading.style.display = 'block';
+    if (analysisEmpty) analysisEmpty.style.display = 'none';
+    if (analysisContent) analysisContent.style.display = 'none';
+    
+    // Disable analyze button during processing
+    if (analyzeBtn) {
+        analyzeBtn.disabled = true;
+        analyzeBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Analyzing...';
+    }
             
     // Simulate API call delay
     setTimeout(() => {
         // Show analysis content with updated data
-        analysisLoading.style.display = 'none';
-        analysisContent.style.display = 'block';
+        if (analysisLoading) analysisLoading.style.display = 'none';
+        if (analysisContent) analysisContent.style.display = 'block';
                 
         // Update the "Updated just now" text
         const updateText = document.querySelector('.analysis-header p');
-        const now = new Date();
-        const timeString = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-        updateText.textContent = `Based on your latest journal entry • Updated at ${timeString}`;
+        if (updateText) {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            updateText.textContent = `Based on your latest journal entry • Updated at ${timeString}`;
+        }
                 
         // Update analysis content with enhanced display
         updateAnalysisDisplay(analysis);
+        
+        // Re-enable analyze button
+        if (analyzeBtn) {
+            analyzeBtn.disabled = false;
+            analyzeBtn.innerHTML = '<i class="fas fa-brain mr-2"></i>Analyze Entry';
+        }
                 
         // Show success message using toast
         showToast({ 
             title: "Analysis Complete", 
-            description: "Your journal has been analyzed and saved to the cloud.", 
+            description: "Your journal has been analyzed and saved.", 
             type: "success" 
         });
                 
         // Smooth scroll to analysis section
-        document.getElementById('analysis-section').scrollIntoView({ 
-            behavior: 'smooth',
-            block: 'start'
-        });
+        const analysisSection = document.getElementById('analysis-section');
+        if (analysisSection) {
+            analysisSection.scrollIntoView({ 
+                behavior: 'smooth',
+                block: 'start'
+            });
+        }
     }, 1800);
 }
 
 function clearJournalEntry() {
+    if (!journalText) return;
+    
     if (journalText.value.trim() && !confirm('Clear the current entry?')) {
         return;
     }
+    
     journalText.value = '';
     updateWordCount();
-    analysisContent.style.display = 'none';
-    analysisEmpty.style.display = 'block';
+    
+    if (analysisContent) analysisContent.style.display = 'none';
+    if (analysisEmpty) analysisEmpty.style.display = 'block';
     
     // Use toast instead of notification
     showToast({
@@ -825,6 +1002,8 @@ function clearJournalEntry() {
 
 // Enhanced function to update all analysis components
 function updateAnalysisDisplay(analysis) {
+    if (!analysis) return;
+    
     // Update Risk Summary
     updateRiskSummary(analysis.risk_level);
     
@@ -837,11 +1016,6 @@ function updateAnalysisDisplay(analysis) {
 }
 
 function updateRiskSummary(riskLevel) {
-    const riskSummary = document.getElementById('risk-summary');
-    const riskMeter = document.getElementById('risk-meter-fill');
-    const riskText = document.getElementById('risk-level-text');
-    const riskDesc = document.getElementById('risk-description');
-    
     const riskConfig = {
         critical: {
             percent: 95,
@@ -875,9 +1049,13 @@ function updateRiskSummary(riskLevel) {
     
     const config = riskConfig[riskLevel] || riskConfig.low;
     
-    // Create risk summary if it doesn't exist
+    // Look for existing risk summary
+    let riskSummary = document.getElementById('risk-summary');
+    
     if (!riskSummary) {
         const analysisHeader = document.querySelector('.analysis-header');
+        if (!analysisHeader) return;
+        
         const riskHTML = `
             <div id="risk-summary" class="risk-summary-card">
                 <div class="risk-level-display">
@@ -896,35 +1074,47 @@ function updateRiskSummary(riskLevel) {
             </div>
         `;
         
-        if (analysisHeader && analysisHeader.nextSibling) {
-            analysisHeader.insertAdjacentHTML('afterend', riskHTML);
-        }
-    } else {
-        // Update existing risk summary
+        analysisHeader.insertAdjacentHTML('afterend', riskHTML);
+        riskSummary = document.getElementById('risk-summary');
+    }
+    
+    // Update existing risk summary
+    const riskMeter = document.getElementById('risk-meter-fill');
+    const riskText = document.getElementById('risk-level-text');
+    const riskDesc = document.getElementById('risk-description');
+    
+    if (riskMeter) {
         riskMeter.style.width = config.percent + '%';
         riskMeter.style.backgroundColor = config.color;
+    }
+    
+    if (riskText) {
         riskText.textContent = config.text;
         riskText.style.color = config.color;
+    }
+    
+    if (riskDesc) {
         riskDesc.textContent = config.desc;
-        
-        // Update icon
-        const icon = riskSummary.querySelector('i');
-        if (icon) {
-            icon.className = config.icon;
-            icon.style.color = config.color;
-        }
+    }
+    
+    // Update icon
+    const icon = riskSummary.querySelector('i');
+    if (icon) {
+        icon.className = config.icon;
+        icon.style.color = config.color;
     }
 }
 
 function updatePatternsDisplay(patterns) {
     const container = document.getElementById('patterns-container') || createAnalysisContainer('patterns');
+    if (!container) return;
     
     if (!patterns || patterns.length === 0) {
         container.innerHTML = '<div class="empty-message">No recurring patterns detected in this entry</div>';
         return;
     }
     
-    container.innerHTML = patterns.map(pattern => `
+    container.innerHTML = patterns.map((pattern, index) => `
         <div class="pattern-item">
             <div class="flex items-start justify-between mb-1">
                 <h4 class="font-semibold text-foreground">${pattern.theme}</h4>
@@ -932,7 +1122,7 @@ function updatePatternsDisplay(patterns) {
                     <span class="frequency-indicator">
                         <i class="fas fa-chart-bar mr-1"></i>${pattern.frequency}
                     </span>
-                    <span class="badge ${pattern.confidence === 'High' ? 'badge-success' : 'badge-secondary'}">
+                    <span class="badge ${pattern.confidence === 'High' ? 'badge-success' : pattern.confidence === 'Medium' ? 'badge-warning' : 'badge-secondary'}">
                         ${pattern.confidence}
                     </span>
                 </div>
@@ -942,20 +1132,21 @@ function updatePatternsDisplay(patterns) {
                 <i class="fas fa-${pattern.trend === 'Increasing' ? 'arrow-up trend-up' : pattern.trend === 'Decreasing' ? 'arrow-down trend-down' : 'minus trend-stable'} mr-1"></i>
                 <span class="text-xs">${pattern.trend} trend detected</span>
             </div>
-            ${patterns.indexOf(pattern) < patterns.length - 1 ? '<div class="separator mt-3"></div>' : ''}
+            ${index < patterns.length - 1 ? '<div class="separator mt-3"></div>' : ''}
         </div>
     `).join('');
 }
 
 function updateTriggersDisplay(triggers) {
     const container = document.getElementById('triggers-container') || createAnalysisContainer('triggers');
+    if (!container) return;
     
     if (!triggers || triggers.length === 0) {
         container.innerHTML = '<div class="empty-message">No trauma triggers detected in this entry</div>';
         return;
     }
     
-    container.innerHTML = triggers.map(trigger => `
+    container.innerHTML = triggers.map((trigger, index) => `
         <div class="trigger-item">
             <div class="flex items-start justify-between mb-1">
                 <div class="flex items-center gap-2">
@@ -974,20 +1165,21 @@ function updateTriggersDisplay(triggers) {
                 <i class="fas fa-lightbulb mr-1"></i>
                 <strong>Suggested approach:</strong> ${trigger.suggested_approach}
             </p>
-            ${triggers.indexOf(trigger) < triggers.length - 1 ? '<div class="separator mt-3"></div>' : ''}
+            ${index < triggers.length - 1 ? '<div class="separator mt-3"></div>' : ''}
         </div>
     `).join('');
 }
 
 function updateWarningsDisplay(warnings) {
     const container = document.getElementById('warnings-container') || createAnalysisContainer('warnings');
+    if (!container) return;
     
     if (!warnings || warnings.length === 0) {
         container.innerHTML = '<div class="empty-message">No immediate warnings detected. Continue monitoring your patterns.</div>';
         return;
     }
     
-    container.innerHTML = warnings.map(warning => `
+    container.innerHTML = warnings.map((warning, index) => `
         <div class="warning-item warning-${warning.level}">
             <div class="flex items-start justify-between mb-2">
                 <h4 class="font-semibold text-foreground">${warning.message}</h4>
@@ -1002,20 +1194,21 @@ function updateWarningsDisplay(warnings) {
                 <p class="text-xs font-medium mb-1"><i class="fas fa-hands-helping mr-1"></i>Suggested Action:</p>
                 <p class="text-xs pl-4">${warning.suggested_action}</p>
             </div>
-            ${warnings.indexOf(warning) < warnings.length - 1 ? '<div class="separator mt-3"></div>' : ''}
+            ${index < warnings.length - 1 ? '<div class="separator mt-3"></div>' : ''}
         </div>
     `).join('');
 }
 
 function updateGroundingDisplay(grounding) {
     const container = document.getElementById('grounding-container') || createAnalysisContainer('grounding');
+    if (!container) return;
     
     if (!grounding || grounding.length === 0) {
         container.innerHTML = '<div class="empty-message">No grounding techniques suggested</div>';
         return;
     }
     
-    container.innerHTML = grounding.map(technique => `
+    container.innerHTML = grounding.map((technique, index) => `
         <div class="grounding-item">
             <div class="flex items-start justify-between mb-2">
                 <div class="flex items-center gap-2">
@@ -1032,24 +1225,25 @@ function updateGroundingDisplay(grounding) {
             <p class="text-xs text-muted-foreground mb-3 pl-4">${technique.when_to_use}</p>
             <p class="text-xs font-medium mb-1"><i class="fas fa-list-ol mr-1"></i>Step-by-Step Instructions:</p>
             <ol class="step-list">
-                ${technique.steps.map((step, index) => `
-                    <li class="text-xs text-muted-foreground">${step}</li>
+                ${technique.steps.map((step, stepIndex) => `
+                    <li class="text-xs text-muted-foreground">${stepIndex + 1}. ${step}</li>
                 `).join('')}
             </ol>
-            ${grounding.indexOf(technique) < grounding.length - 1 ? '<div class="separator mt-3"></div>' : ''}
+            ${index < grounding.length - 1 ? '<div class="separator mt-3"></div>' : ''}
         </div>
     `).join('');
 }
 
 function updateCopingDisplay(coping) {
     const container = document.getElementById('coping-container') || createAnalysisContainer('coping');
+    if (!container) return;
     
     if (!coping || coping.length === 0) {
         container.innerHTML = '<div class="empty-message">No coping strategies suggested</div>';
         return;
     }
     
-    container.innerHTML = coping.map(strategy => `
+    container.innerHTML = coping.map((strategy, index) => `
         <div class="coping-item">
             <div class="flex items-start justify-between mb-2">
                 <h4 class="font-semibold text-foreground">${strategy.title}</h4>
@@ -1060,13 +1254,13 @@ function updateCopingDisplay(coping) {
             <p class="text-xs text-muted-foreground mb-3 pl-4">${strategy.when_to_use}</p>
             <p class="text-xs font-medium mb-1"><i class="fas fa-list-ol mr-1"></i>Implementation Steps:</p>
             <ol class="step-list">
-                ${strategy.steps.map((step, index) => `
-                    <li class="text-xs text-muted-foreground">${step}</li>
+                ${strategy.steps.map((step, stepIndex) => `
+                    <li class="text-xs text-muted-foreground">${stepIndex + 1}. ${step}</li>
                 `).join('')}
             </ol>
             <p class="text-xs font-medium mt-3"><i class="fas fa-user-check mr-1"></i>Why this is personalized for you:</p>
             <p class="text-xs text-muted-foreground">${strategy.personalization}</p>
-            ${coping.indexOf(strategy) < coping.length - 1 ? '<div class="separator mt-3"></div>' : ''}
+            ${index < coping.length - 1 ? '<div class="separator mt-3"></div>' : ''}
         </div>
     `).join('');
 }
@@ -1088,34 +1282,32 @@ function createAnalysisContainer(type) {
     
     // If card doesn't exist, create it in the analysis grid
     const analysisGrid = document.querySelector('.analysis-grid');
-    if (analysisGrid) {
-        const cardTitles = {
-            patterns: 'Recurring Patterns',
-            triggers: 'Trauma Triggers',
-            warnings: 'Early Warnings',
-            grounding: 'Grounding Techniques',
-            coping: 'Coping Strategies'
-        };
-        
-        const cardHTML = `
-            <div class="analysis-card ${type}-card">
-                <div class="analysis-card-header">
-                    <div class="analysis-card-title">
-                        <i class="fas fa-${getCardIcon(type)} text-primary"></i>
-                        ${cardTitles[type]}
-                    </div>
-                </div>
-                <div class="analysis-card-content" id="${type}-container">
-                    <!-- Content will be populated -->
+    if (!analysisGrid) return null;
+    
+    const cardTitles = {
+        patterns: 'Recurring Patterns',
+        triggers: 'Trauma Triggers',
+        warnings: 'Early Warnings',
+        grounding: 'Grounding Techniques',
+        coping: 'Coping Strategies'
+    };
+    
+    const cardHTML = `
+        <div class="analysis-card ${type}-card">
+            <div class="analysis-card-header">
+                <div class="analysis-card-title">
+                    <i class="fas fa-${getCardIcon(type)} text-primary"></i>
+                    ${cardTitles[type]}
                 </div>
             </div>
-        `;
-        
-        analysisGrid.innerHTML += cardHTML;
-        return document.getElementById(`${type}-container`);
-    }
+            <div class="analysis-card-content" id="${type}-container">
+                <!-- Content will be populated -->
+            </div>
+        </div>
+    `;
     
-    return null;
+    analysisGrid.insertAdjacentHTML('beforeend', cardHTML);
+    return document.getElementById(`${type}-container`);
 }
 
 function getCardIcon(type) {
@@ -1154,8 +1346,10 @@ async function signOut() {
             type: "info"
         });
         
+        const supabase = getSupabaseClient();
+        
         // Try to sign out from Supabase if available
-        if (typeof supabase !== 'undefined' && supabase.auth) {
+        if (supabase && supabase.auth) {
             console.log('Attempting Supabase sign out');
             const { error } = await supabase.auth.signOut();
             if (error) {
@@ -1168,8 +1362,11 @@ async function signOut() {
             console.log('Supabase not available, performing local sign out');
         }
         
-        // Clear any local session data (optional)
-        // localStorage.removeItem('userSession'); // Uncomment if you store session data
+        // Clear local storage for this user
+        const { data: { user } } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
+        if (user) {
+            localStorage.removeItem(`journalEntries_${user.id}`);
+        }
         
         // Show success message
         showToast({
@@ -1211,16 +1408,24 @@ function showToast({ title, description, type = "success" }) {
     
     // Create toast element
     const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
+    toast.className = `toast toast-${type}`;
+    
+    const typeIcons = {
+        success: 'check-circle',
+        warning: 'exclamation-triangle',
+        destructive: 'times-circle',
+        info: 'info-circle'
+    };
+    
     toast.innerHTML = `
         <div class="toast-content">
-            <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'warning' ? 'exclamation-triangle' : type === 'destructive' ? 'times-circle' : 'info-circle'} toast-icon"></i>
+            <i class="fas fa-${typeIcons[type] || 'info-circle'} toast-icon"></i>
             <div class="toast-message">
                 <div class="toast-title">${title}</div>
                 <div class="toast-description">${description}</div>
             </div>
         </div>
-        <button class="toast-close" onclick="this.parentElement.remove()">
+        <button class="toast-close">
             <i class="fas fa-times"></i>
         </button>
     `;
@@ -1231,14 +1436,21 @@ function showToast({ title, description, type = "success" }) {
     // Auto-remove after 5 seconds
     setTimeout(() => {
         if (toast.parentNode) {
-            toast.style.animation = 'slideInFromRight 0.3s ease reverse forwards';
-            setTimeout(() => toast.remove(), 300);
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(100%)';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.remove();
+                }
+            }, 300);
         }
     }, 5000);
 }
 
 // Save current analysis to history
 function saveToHistory() {
+    if (!journalText) return;
+    
     const text = journalText.value.trim();
     if (!text) {
         showToast({
@@ -1255,24 +1467,28 @@ function saveToHistory() {
         description: "Your journal entry has been saved to your history.",
         type: "success"
     });
-    
 }
 
 // Clear analysis and prepare for another entry
 function analyzeAnother() {
     // Clear the journal text
-    journalText.value = '';
+    if (journalText) {
+        journalText.value = '';
+    }
     updateWordCount();
     
     // Hide analysis content and show empty state
-    analysisContent.style.display = 'none';
-    analysisEmpty.style.display = 'block';
+    if (analysisContent) analysisContent.style.display = 'none';
+    if (analysisEmpty) analysisEmpty.style.display = 'block';
     
     // Scroll back to the journal editor
-    document.querySelector('.journal-editor-card').scrollIntoView({ 
-        behavior: 'smooth',
-        block: 'start'
-    });
+    const journalEditor = document.querySelector('.journal-editor-card');
+    if (journalEditor) {
+        journalEditor.scrollIntoView({ 
+            behavior: 'smooth',
+            block: 'start'
+        });
+    }
     
     // Show confirmation toast
     showToast({
@@ -1291,4 +1507,5 @@ window.showToast = showToast;
 window.updateWordCount = updateWordCount;
 window.generateEnhancedAnalysis = generateEnhancedAnalysis;
 window.saveToHistory = saveToHistory; 
-window.analyzeAnother = analyzeAnother;  
+window.analyzeAnother = analyzeAnother;
+window.getSupabaseClient = getSupabaseClient;
