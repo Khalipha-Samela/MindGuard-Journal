@@ -9,6 +9,32 @@ const wordCount = document.getElementById('word-count');
 const analyzeBtn = document.getElementById('analyze-btn');
 const clearBtn = document.getElementById('clear-btn');
 
+// IMMEDIATE AUTH CHECK - runs before anything else
+(function immediateAuthCheck() {
+    console.log('Running immediate auth check...');
+    
+    // Check for Supabase session token in localStorage (Supabase stores it here)
+    const supabaseSession = localStorage.getItem('supabase.auth.token');
+    const mindguardSession = localStorage.getItem('mindguard_session');
+    
+    // If NO session exists at all, redirect immediately
+    if (!supabaseSession && !mindguardSession) {
+        console.log('No session found, redirecting to login immediately...');
+        
+        // Get current page
+        const currentPath = window.location.pathname;
+        const isDashboardPage = currentPath.includes('index.html') || 
+                               currentPath === '/' || 
+                               currentPath.endsWith('/');
+        
+        // Only redirect if we're on the dashboard page
+        if (isDashboardPage) {
+            // Redirect IMMEDIATELY before anything loads
+            window.location.href = 'login.html';
+        }
+    }
+})();
+
 // Simulate initial loading state
 window.addEventListener('DOMContentLoaded', async () => {
     console.log('DOM loaded, waiting for Supabase...');
