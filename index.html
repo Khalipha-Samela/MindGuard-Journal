@@ -13,6 +13,29 @@
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
     <link rel="stylesheet" href="assets/css/style.css">
+
+    <script>
+     // Immediate auth check before page loads
+    (function checkAuthRedirect() {
+        // Get any saved session token from localStorage (Supabase stores it)
+        const supabaseSession = localStorage.getItem('supabase.auth.token');
+        const mindguardSession = localStorage.getItem('mindguard_session');
+    
+        // If no session exists and we're not already on login/register pages
+        if (!supabaseSession && !mindguardSession) {
+        const currentPath = window.location.pathname;
+      
+        // Only redirect if we're on the dashboard/index page
+        if (currentPath.includes('index.html') || currentPath === '/' || currentPath.endsWith('/')) {
+            // Store the intended destination before redirecting
+            sessionStorage.setItem('redirectAfterLogin', window.location.href);
+        
+            // Redirect to login
+            window.location.href = 'login.html';
+        }
+        }
+    })();
+    </script>
 </head>
 <body>
     <!-- Loading State -->
